@@ -81,7 +81,7 @@ public class TempoAdjustButton extends ImagePushButton {
             setPressed();
             addTempo(1);
             TimerTask tt = new clickHold();
-            t.schedule(tt, Values.HOLDTIME, Values.REPEATTIME);
+            t.schedule(tt, Values.MOUSEHOLDTIME, Values.MOUSEREPEATTIME);
         }
     }
 

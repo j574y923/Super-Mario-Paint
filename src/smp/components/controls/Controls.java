@@ -2,7 +2,12 @@ package smp.components.controls;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.TimerTask;
+import java.util.Timer;
 
+import javax.swing.event.DocumentEvent.EventType;
+
+import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
 import javafx.beans.value.ChangeListener;
@@ -10,10 +15,13 @@ import javafx.beans.value.ObservableValue;
 import javafx.event.EventHandler;
 import javafx.scene.control.ListView;
 import javafx.scene.control.Slider;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.StackPane;
 import smp.ImageIndex;
 import smp.ImageLoader;
+import smp.components.Values;
 import smp.components.buttons.AddButton;
 import smp.components.buttons.ArrowButton;
 import smp.components.buttons.DeleteButton;
@@ -76,6 +84,9 @@ public class Controls {
 
     /** This is the slider at the bottom of the screen. */
     private Slider scrollbar;
+
+    /** This is a timer for the repeating arrow keys behaviour. */
+    private Timer t = new Timer();
 
     /** The arrow that you click to go left. */
     private ArrowButton leftArrow;
@@ -283,6 +294,44 @@ public class Controls {
 
         });
 
+        scrollbar.setOnKeyPressed(new EventHandler<KeyEvent>() {
+
+            @Override
+            public void handle(KeyEvent event) {
+                KeyCode k = event.getCode();
+                if (k.isArrowKey()) {
+                    if (k == KeyCode.LEFT) {
+                        TimerTask tt = new shiftStaff(-1);
+                        t.schedule(tt, Values.KEYHOLDTIME, Values.KEYREPEATTIME);
+                    } else if (k == KeyCode.RIGHT){
+                        TimerTask tt=  new shiftStaff(1);
+                        t.schedule(tt, Values.KEYHOLDTIME, Values.KEYREPEATTIME);
+                    }
+                    event.consume();
+                }
+            }
+
+        });;
+
+        scrollbar.setOnKeyReleased(new EventHandler<KeyEvent>() {
+
+            @Override
+            public void handle(KeyEvent event) {
+                KeyCode k = event.getCode();
+                if (k.isArrowKey()) {
+                    if (k == KeyCode.LEFT) {
+                        t.cancel();
+                        t = new Timer();
+                    } else if (k == KeyCode.RIGHT){
+                        t.cancel();
+                        t = new Timer();
+                    }
+                    event.consume();
+                }
+            }
+
+        });;
+
     }
 
     /**
@@ -403,4 +452,35 @@ public class Controls {
         controller = ct;
     }
 
+
+    /**
+     * This is a timer task that shifts the staff by some amount.
+     *
+     * @author RehdBlob
+     * @since 2016.08.16
+     */
+    class shiftStaff extends TimerTask {
+
+        /** The amount we want to shift the staff by. */
+        int offset;
+
+        shiftStaff(int o) {
+            offset = o;
+        }
+
+        @Override
+        public void run() {
+            Platform.runLater(new Runnable(){
+
+                @Override
+                public void run() {
+
+                    scrollbar.setValue(scrollbar.getValue() + offset);
+
+                }
+
+            });
+        }
+
+    }
 }

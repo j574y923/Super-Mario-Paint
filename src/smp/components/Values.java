@@ -89,13 +89,22 @@ public class Values {
     public static int DEFAULT_TEMPO = 400;
 
     /**
-     * The amount of time the mouse must be held before we start repeating
-     * clicks.
+     * The amount of time in milliseconds something must be held before
+     * we start repeating things.
      */
-    public static int HOLDTIME = 250;
+    public static int MOUSEHOLDTIME = 250;
 
     /** The amount of time between the repetition of two mouse click events. */
-    public static int REPEATTIME = 10;
+    public static int MOUSEREPEATTIME = 10;
+
+    /**
+     * The amount of time in milliseconds something must be held before we
+     * start repeating things.
+     */
+    public static int KEYHOLDTIME = 25;
+
+    /** The amount of time between the repetition of two key press events. */
+    public static int KEYREPEATTIME = 1000;
 
     /**
      * This is the default song folder that we will check for arrangement song

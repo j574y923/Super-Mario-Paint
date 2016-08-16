@@ -83,7 +83,7 @@ public class ArrowButton extends ImagePushButton {
         super.reactPressed(event);
         bumpStaff();
         TimerTask tt = new clickHold();
-        t.schedule(tt, Values.HOLDTIME, Values.REPEATTIME);
+        t.schedule(tt, Values.MOUSEHOLDTIME, Values.MOUSEREPEATTIME);
     }
 
     /** Bumps the staff by some amount. */
