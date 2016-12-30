@@ -215,11 +215,8 @@ public class Staff {
         if ((Settings.debug & (1 << 6)) != 0) {
             System.out.println(redraws);
         }
-        try {
-            theMatrix.redraw();
-        } catch (InterruptedException e) {
-            // do nothing
-        }
+        theMatrix.requestRedraw();
+
     }
 
     /** Turns off all highlights in the play bars in the staff. */

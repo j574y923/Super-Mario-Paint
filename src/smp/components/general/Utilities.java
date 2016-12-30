@@ -18,6 +18,7 @@ import java.io.StreamCorruptedException;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Scanner;
+import java.util.Set;
 
 import javax.swing.JFileChooser;
 import javax.swing.JOptionPane;
@@ -551,6 +552,25 @@ public class Utilities {
         theStaff.getArrangement().setTheSequences(seq);
 
         controller.getNameTextField().setText(fname);
+    }
+
+    /**
+     * <url>http://stackoverflow.com/questions/15370120/get-thread-by-name</url>
+     * @param threadName
+     * @return Specific thread by name.
+     */
+    public static Thread getThreadByName(String threadName) {
+        Thread __tmp = null;
+
+        Set<Thread> threadSet = Thread.getAllStackTraces().keySet();
+        Thread[] threadArray = threadSet.toArray(new Thread[threadSet.size()]);
+
+        for (int i = 0; i < threadArray.length; i++) {
+            if (threadArray[i].getName().equals(threadName))
+                __tmp =  threadArray[i];
+        }
+
+        return __tmp;
     }
 
 }

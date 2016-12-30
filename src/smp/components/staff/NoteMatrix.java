@@ -6,10 +6,12 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import smp.ImageLoader;
 import smp.components.Values;
+import smp.components.general.Utilities;
 import smp.components.staff.sequences.StaffAccidental;
 import smp.components.staff.sequences.StaffNote;
 import smp.components.staff.sequences.StaffNoteLine;
 import smp.stateMachine.StateMachine;
+import javafx.application.Platform;
 import javafx.collections.ObservableList;
 import javafx.scene.Node;
 import javafx.scene.layout.StackPane;
@@ -64,6 +66,46 @@ public class NoteMatrix {
     /** Pointer to the image loader object. */
     private transient ImageLoader il;
 
+    /** Number of redraw requests in the queue. */
+    private volatile transient int redrawRequests = 0;
+
+    /** Whether there is currently a redraw operation in progress. */
+    private volatile transient boolean redrawInProgress = false;
+
+    /** Name of the application thread. */
+    private static String appThreadName = "JavaFX Application Thread";
+
+    /** JavaFX Application Thread. */
+    private transient Thread appThread;
+
+    /** Redraw renderer thread. */
+    private transient Thread redrawTh = new Thread(new Runnable() {
+
+        @Override
+        public void run() {
+            while(true) {
+                if (redrawRequests > 1) {
+                    redrawRequests--;
+                }
+                if (redrawRequests == 1) {
+                    System.out.println(redrawRequests);
+                    redrawRequests--;
+                    appThread.interrupt();
+                    redraw();
+                }
+                if (redrawRequests <= 0) {
+                    redrawRequests = 0;
+                }
+
+                while (redrawInProgress) {
+                    Thread.yield();
+                }
+                Thread.yield();
+            }
+        }
+
+    });
+
     /**
      * @param x
      *            The number of note lines on the current staff.
@@ -71,6 +113,7 @@ public class NoteMatrix {
      *            The number of addressable notes in a line.
      */
     public NoteMatrix(int x, int y, Staff s, ImageLoader i) {
+        appThread = Utilities.getThreadByName(appThreadName);
         theStaff = s;
         il = i;
         numberOfLines = x;
@@ -79,6 +122,7 @@ public class NoteMatrix {
         accMatrix = new ArrayList<ArrayList<StackPane>>();
         volumeBars = new ArrayList<StackPane>();
         volumeBarHandlers = new ArrayList<StaffVolumeEventHandler>();
+        redrawTh.start();
     }
 
     /**
@@ -162,25 +206,27 @@ public class NoteMatrix {
         return matrix.get(index);
     }
 
-    /** Redraws the entire matrix.
-     * @throws InterruptedException */
-    public void redraw() throws InterruptedException {
-        lock.tryLock(300, TimeUnit.MICROSECONDS);
+    /**
+     * Requests a redraw of the entire staff.
+     */
+    public void requestRedraw() {
+        redrawRequests++;
+    }
+
+    /** Redraws the entire matrix. */
+    private void redraw() {
+        redrawInProgress = true;
+        lock.lock();
         try {
             for (int i = 0; i < Values.NOTELINES_IN_THE_WINDOW; i++) {
-                try {
-                    redraw(i);
-                } catch (IndexOutOfBoundsException e) {
-                    e.printStackTrace();
-                    break;
-                    // Otherwise, do nothing.
-                }
+                redraw(i);
             }
         } finally {
             lock.unlock();
         }
         if (focusPane != null)
             focusPane.redraw();
+        redrawInProgress = false;
     }
 
     /**
@@ -269,19 +315,35 @@ public class NoteMatrix {
      * @param index
      *            The index that we are clearing.
      */
-    private synchronized void clearNoteDisplay(int index) {
-        ArrayList<StackPane> nt = matrix.get(index);
-        ArrayList<StackPane> ac = accMatrix.get(index);
-        for (int i = 0; i < nt.size(); i++) {
-            ObservableList<Node> ntList = nt.get(i).getChildren();
-            ObservableList<Node> acList = ac.get(i).getChildren();
-            synchronized(ntList) {
-                ntList.clear();
+    private void clearNoteDisplay(int index) {
+        final ArrayList<StackPane> nt = matrix.get(index);
+        final ArrayList<StackPane> ac = accMatrix.get(index);
+        Platform.runLater(new Runnable() {
+
+            @Override
+            public void run() {
+                try {
+                    for (int i = 0; i < nt.size(); i++) {
+                        ObservableList<Node> ntList = nt.get(i).getChildren();
+                        if (Thread.interrupted()) {
+                            return;
+                        }
+                        ntList.clear();
+                    }
+                    for (int i = 0; i < nt.size(); i++) {
+                        ObservableList<Node> acList = ac.get(i).getChildren();
+                        if (Thread.interrupted()) {
+                            return;
+                        }
+                        acList.clear();
+                    }
+                } catch (IndexOutOfBoundsException e) {
+                    System.out.println(redrawRequests);
+                }
+
             }
-            synchronized(acList) {
-                acList.clear();
-            }
-        }
+
+        });
     }
 
     /**
@@ -292,31 +354,47 @@ public class NoteMatrix {
      * @param index
      *            The index to repopulate.
      */
-    private void populateNoteDisplay(StaffNoteLine stl, int index) {
-        ArrayList<StaffNote> st = stl.getNotes();
-        for (StaffNote s : st) {
-            StackPane[] noteAndAcc = getNote(index, s.getPosition());
-            synchronized(noteAndAcc[0].getChildren()) {
-                noteAndAcc[0].getChildren().add(s);
-            }
-            StaffAccidental accidental = new StaffAccidental(s);
-            accidental.setImage(il.getSpriteFX(Staff.switchAcc(s
-                    .getAccidental())));
-            synchronized(noteAndAcc[1].getChildren()) {
-                noteAndAcc[1].getChildren().add(accidental);
+    private void populateNoteDisplay(StaffNoteLine stl, final int index) {
+        final ArrayList<StaffNote> st = stl.getNotes();
+
+        Platform.runLater(new Runnable() {
+
+            @Override
+            public void run() {
+                for (StaffNote s : st) {
+                    StackPane[] noteAndAcc = getNote(index, s.getPosition());
+
+                    if (Thread.interrupted()) {
+                        return;
+                    }
+                    noteAndAcc[0].getChildren().add(s);
+
+                    StaffAccidental accidental = new StaffAccidental(s);
+                    accidental.setImage(il.getSpriteFX(Staff.switchAcc(s
+                            .getAccidental())));
+
+                    if (Thread.interrupted()) {
+                            return;
+                    }
+                    noteAndAcc[1].getChildren().add(accidental);
+
+
+                    if (s.muteNoteVal() == 0) {
+                        s.setImage(il.getSpriteFX(s.getInstrument().imageIndex()));
+                    } else if (s.muteNoteVal() == 1) {
+                        s.setImage(il.getSpriteFX(s.getInstrument().imageIndex().alt()));
+                    } else {
+                        s.setImage(il.getSpriteFX(s.getInstrument().imageIndex()
+                                .silhouette()));
+                    }
+
+                    s.setVisible(true);
+                }
+
             }
 
-            if (s.muteNoteVal() == 0) {
-                s.setImage(il.getSpriteFX(s.getInstrument().imageIndex()));
-            } else if (s.muteNoteVal() == 1) {
-                s.setImage(il.getSpriteFX(s.getInstrument().imageIndex().alt()));
-            } else {
-                s.setImage(il.getSpriteFX(s.getInstrument().imageIndex()
-                        .silhouette()));
-            }
+        });
 
-            s.setVisible(true);
-        }
     }
 
     /**
