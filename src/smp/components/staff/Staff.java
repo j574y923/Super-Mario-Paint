@@ -25,6 +25,7 @@ import smp.components.staff.sequences.StaffSequence;
 import smp.components.staff.sequences.mpc.MPCDecoder;
 import smp.components.topPanel.PanelButtons;
 import smp.fx.SMPFXController;
+import smp.stateMachine.Settings;
 import smp.stateMachine.StateMachine;
 
 /**
@@ -51,6 +52,9 @@ public class Staff {
 
     /** This is the last line of notes in the song. */
     private int lastLine;
+
+    /** The number of times that the staff has been redrawn. */
+    private int redraws = 0;
 
     /** This is the current line that we are at. */
     private DoubleProperty currVal;
@@ -179,30 +183,43 @@ public class Staff {
     }
 
     /**
-     * Jumps to a certain position on the staff.
+     * Jumps to a certain position on the staff, without first being updated from
+     * the scrollbar.
      *
      * @param num
      *            The first measure line number (usually between 1 and 375) that
      *            is to be displayed.
      */
-    public synchronized void setLocation(int num) {
-        theMatrix.redraw();
+    public void setLocation(int num) {
         Slider s = controller.getScrollbar();
         s.adjustValue(num);
     }
 
     /**
+     * Jumps to a certain position on the staff, as updated from the scrollbar.
+     *
+     * @param num
+     *            The first measure line number (usually between 1 and 375) that
+     *            is to be displayed.
+     */
+    public void setLocationScroll(int num) {
+        this.getStaffImages().updateStaffMeasureLines(num);
+        this.redraw();
+    }
+
+    /**
      * Force re-draws the staff.
      */
-    public synchronized void redraw() {
-        Platform.runLater(new Runnable() {
-            @Override
-            public void run() {
-                theMatrix.redraw();
-                Slider s = controller.getScrollbar();
-                s.adjustValue(StateMachine.getMeasureLineNum());
-            }
-        });
+    public void redraw() {
+        redraws++;
+        if ((Settings.debug & (1 << 6)) != 0) {
+            System.out.println(redraws);
+        }
+        try {
+            theMatrix.redraw();
+        } catch (InterruptedException e) {
+            // do nothing
+        }
     }
 
     /** Turns off all highlights in the play bars in the staff. */

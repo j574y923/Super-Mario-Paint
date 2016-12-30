@@ -435,7 +435,7 @@ public class Utilities {
                 .setMax(loaded.getTheLines().size()
                         - Values.NOTELINES_IN_THE_WINDOW);
         theStaff.setLocation(0);
-        theStaff.getNoteMatrix().redraw();
+        theStaff.redraw();
         String fname = inputFile.getName();
         try {
             if (mpc)

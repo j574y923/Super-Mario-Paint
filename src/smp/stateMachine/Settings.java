@@ -25,8 +25,9 @@ public class Settings {
     public final static boolean SAVE_OBJECTS = false;
 
     /**
-     * Classic debug on/off. Level 1.
-     * 0b10000 - Print staff value every time it changes.
+     * Classic debug on/off. <br>
+     * 1 << 5 - Print number of times that the staff has been re-drawn. <br>
+     * 1 << 6 - Print staff value every time it changes. <br>
      * Set to -1 for max debug.
      */
     public static int debug = 0;

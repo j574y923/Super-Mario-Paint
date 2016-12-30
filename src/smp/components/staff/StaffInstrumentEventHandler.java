@@ -14,6 +14,7 @@ import smp.components.staff.sequences.StaffNoteLine;
 import smp.components.topPanel.ButtonLine;
 import smp.stateMachine.Settings;
 import smp.stateMachine.StateMachine;
+import javafx.application.Platform;
 import javafx.collections.ObservableList;
 import javafx.event.Event;
 import javafx.event.EventHandler;
@@ -52,6 +53,12 @@ public class StaffInstrumentEventHandler implements EventHandler<Event> {
     /** The StackPane that will display sharps, flats, etc. */
     private ObservableList<Node> accList;
 
+    /** Silhouette image layer. */
+    private ObservableList<Node> theImageSil;
+
+    /** Silhouette accidental layer. */
+    private ObservableList<Node> accSil;
+
     /**
      * This is the <code>ImageView</code> object responsible for displaying the
      * silhouette of the note that we are about to place on the staff.
@@ -66,7 +73,7 @@ public class StaffInstrumentEventHandler implements EventHandler<Event> {
      * silhouette of the sharp / flat of the note that we are about to place on
      * the staff.
      */
-    private ImageView accSilhouette;
+    private ImageView accSilhouette = new ImageView();
 
     /** The topmost image of the instrument. */
     private StaffNote theStaffNote;
@@ -97,16 +104,32 @@ public class StaffInstrumentEventHandler implements EventHandler<Event> {
      * @param s
      *            The pointer to the Staff object that this event handler is
      *            linked to.
+     * @param i
+     *            Pointer to the ImageLoader class.
+     * @param sil
+     *            Silhouette layer.
+     * @param aSil
+     *            Accidental silhouette layer.
      */
     public StaffInstrumentEventHandler(StackPane stPane, StackPane acc,
-            int pos, int l, Staff s, ImageLoader i) {
+            int pos, int l, Staff s, ImageLoader i, StackPane sil,
+            StackPane aSil) {
         il = i;
         position = pos;
         line = l;
         theImages = stPane.getChildren();
         accList = acc.getChildren();
         theStaff = s;
-        accSilhouette = new ImageView();
+
+        theImageSil = sil.getChildren();
+        accSil = aSil.getChildren();
+
+        theImageSil.add(silhouette);
+        accSil.add(accSilhouette);
+
+        silhouette.setVisible(false);
+        accSilhouette.setVisible(false);
+
         if ((Settings.debug & 0b10) == 0b10) {
             System.out.println("Line: " + l);
             System.out.println("Position: " + pos);
@@ -185,14 +208,25 @@ public class StaffInstrumentEventHandler implements EventHandler<Event> {
         accidental = new StaffAccidental(theStaffNote);
         accidental.setImage(il.getSpriteFX(Staff.switchAcc(acc)));
 
-        theImages.remove(silhouette);
-        accList.remove(accSilhouette);
+        silhouette.setVisible(false);
+        accSilhouette.setVisible(false);
 
-        if (!theImages.contains(theStaffNote))
-            theImages.add(theStaffNote);
+        Platform.runLater(new Runnable() {
 
-        if (!accList.contains(accidental))
-            accList.add(accidental);
+            @Override
+            public void run() {
+                synchronized(theImages) {
+                    if (!theImages.contains(theStaffNote))
+                        theImages.add(theStaffNote);
+                }
+                synchronized(accList) {
+                    if (!accList.contains(accidental))
+                        accList.add(accidental);
+                }
+            }
+
+        });
+
 
         StaffNoteLine temp = theStaff.getSequence().getLine(
                 line + StateMachine.getMeasureLineNum());
@@ -229,14 +263,27 @@ public class StaffInstrumentEventHandler implements EventHandler<Event> {
      * This removes a note.
      */
     private void removeNote() {
-        theImages.remove(silhouette);
-        accList.remove(accSilhouette);
 
-        if (!theImages.isEmpty())
-            theImages.remove(theImages.size() - 1);
-        if (!accList.isEmpty())
-            accList.remove(0);
+        silhouette.setVisible(false);
+        accSilhouette.setVisible(false);
 
+        Platform.runLater(new Runnable() {
+
+            @Override
+            public void run() {
+
+                synchronized(theImages) {
+                    if (!theImages.isEmpty())
+                        theImages.remove(theImages.size() - 1);
+                }
+                synchronized(accList) {
+                    if (!accList.isEmpty())
+                        accList.remove(0);
+                }
+
+            }
+
+        });
         StaffNoteLine temp = theStaff.getSequence().getLine(
                 line + StateMachine.getMeasureLineNum());
 
@@ -271,14 +318,11 @@ public class StaffInstrumentEventHandler implements EventHandler<Event> {
         theStaff.getNoteMatrix().setFocusPane(this);
         updateAccidental();
         silhouette.setImage(il.getSpriteFX(theInd.imageIndex().silhouette()));
-        if (!theImages.contains(silhouette))
-            theImages.add(silhouette);
-        accSilhouette.setImage(il
-                .getSpriteFX(Staff.switchAcc(acc).silhouette()));
-        if (!accList.contains(accSilhouette))
-            accList.add(accSilhouette);
         silhouette.setVisible(true);
+        accSilhouette.setImage(il
+            .getSpriteFX(Staff.switchAcc(acc).silhouette()));
         accSilhouette.setVisible(true);
+
     }
 
     /**
@@ -292,10 +336,8 @@ public class StaffInstrumentEventHandler implements EventHandler<Event> {
      *            currently selected.
      */
     private void mouseExited(InstrumentIndex theInd) {
-
-        theImages.remove(silhouette);
-        accList.remove(accSilhouette);
-
+        silhouette.setVisible(false);
+        accSilhouette.setVisible(false);
     }
 
     /**
@@ -338,17 +380,14 @@ public class StaffInstrumentEventHandler implements EventHandler<Event> {
             break;
         }
 
-        if (acc != 0)
+        if (acc != 0) {
             accSilhouette.setVisible(true);
-
-        if (acc != 0 && !accList.contains(accSilhouette))
-            accList.add(accSilhouette);
-        if (acc != 0 && !theImages.contains(silhouette)) {
-            theImages.add(silhouette);
             silhouette.setImage(il.getSpriteFX(ButtonLine
                     .getSelectedInstrument().imageIndex().silhouette()));
             silhouette.setVisible(true);
         }
+
+
         if ((Settings.debug & 0b01) == 0b01) {
             System.out.println(this);
         }

@@ -188,17 +188,39 @@ public class StaffImages {
             for (int pos = 1; pos <= Values.NOTES_IN_A_LINE; pos++) {
                 StackPane note = (StackPane) lineOfNotes.get(pos - 1);
                 StackPane acc = (StackPane) lineOfAcc.get(pos - 1);
-                notes.add(note);
-                accs.add(acc);
+                StackPane sil = new StackPane();
+                StackPane accSil = new StackPane();
+                StackPane noteImg = new StackPane();
+                StackPane accImg = new StackPane();
+
+                defaultSet(sil, accSil);
+                defaultSet(noteImg, accImg);
+
+                note.getChildren().add(sil);
+                note.getChildren().add(noteImg);
+                acc.getChildren().add(accSil);
+                acc.getChildren().add(accImg);
+
+                notes.add(noteImg);
+                accs.add(accImg);
                 StaffInstrumentEventHandler hd = new StaffInstrumentEventHandler(
-                        note, acc, Values.NOTES_IN_A_LINE - pos, line,
-                        theStaff, il);
+                        noteImg, accImg, Values.NOTES_IN_A_LINE - pos, line,
+                        theStaff, il, sil, accSil);
                 note.addEventHandler(MouseEvent.ANY, hd);
             }
 
             staffMatrix.addLine(notes);
             staffMatrix.addAccLine(accs);
         }
+    }
+
+
+    /** Set some constant values for sizes, etc. */
+    private void defaultSet(StackPane sil, StackPane accSil) {
+        sil.setPrefHeight(36.0);
+        accSil.setPrefHeight(36.0);
+        sil.setPrefWidth(64.0);
+        accSil.setPrefWidth(32.0);
     }
 
     /**

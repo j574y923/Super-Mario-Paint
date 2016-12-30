@@ -1,6 +1,8 @@
 package smp.components.staff;
 
 import java.util.ArrayList;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantLock;
 
 import smp.ImageLoader;
 import smp.components.Values;
@@ -28,6 +30,9 @@ import javafx.scene.layout.StackPane;
  *
  */
 public class NoteMatrix {
+
+    /** For rendering operations. */
+    private ReentrantLock lock = new ReentrantLock();
 
     /**
      * The list of lists that holds the different <code>StackPane</code>
@@ -157,15 +162,22 @@ public class NoteMatrix {
         return matrix.get(index);
     }
 
-    /** Redraws the entire matrix. */
-    public void redraw() {
-        for (int i = 0; i < Values.NOTELINES_IN_THE_WINDOW; i++) {
-            try {
-                redraw(i);
-            } catch (IndexOutOfBoundsException e) {
-                e.printStackTrace();
-                // Otherwise, do nothing.
+    /** Redraws the entire matrix.
+     * @throws InterruptedException */
+    public void redraw() throws InterruptedException {
+        lock.tryLock(300, TimeUnit.MICROSECONDS);
+        try {
+            for (int i = 0; i < Values.NOTELINES_IN_THE_WINDOW; i++) {
+                try {
+                    redraw(i);
+                } catch (IndexOutOfBoundsException e) {
+                    e.printStackTrace();
+                    break;
+                    // Otherwise, do nothing.
+                }
             }
+        } finally {
+            lock.unlock();
         }
         if (focusPane != null)
             focusPane.redraw();
@@ -178,7 +190,6 @@ public class NoteMatrix {
      *            The index at which we want to redraw.
      */
     private void redraw(int index) {
-
         StaffVolumeEventHandler sveh = volumeBarHandlers.get(index);
         int currentPosition = StateMachine.getMeasureLineNum();
 
@@ -261,11 +272,15 @@ public class NoteMatrix {
     private synchronized void clearNoteDisplay(int index) {
         ArrayList<StackPane> nt = matrix.get(index);
         ArrayList<StackPane> ac = accMatrix.get(index);
-        for (int i = 0; i < Values.NOTES_IN_A_LINE; i++) {
+        for (int i = 0; i < nt.size(); i++) {
             ObservableList<Node> ntList = nt.get(i).getChildren();
             ObservableList<Node> acList = ac.get(i).getChildren();
-            ntList.clear();
-            acList.clear();
+            synchronized(ntList) {
+                ntList.clear();
+            }
+            synchronized(acList) {
+                acList.clear();
+            }
         }
     }
 
@@ -281,11 +296,15 @@ public class NoteMatrix {
         ArrayList<StaffNote> st = stl.getNotes();
         for (StaffNote s : st) {
             StackPane[] noteAndAcc = getNote(index, s.getPosition());
-            noteAndAcc[0].getChildren().add(s);
+            synchronized(noteAndAcc[0].getChildren()) {
+                noteAndAcc[0].getChildren().add(s);
+            }
             StaffAccidental accidental = new StaffAccidental(s);
             accidental.setImage(il.getSpriteFX(Staff.switchAcc(s
                     .getAccidental())));
-            noteAndAcc[1].getChildren().add(accidental);
+            synchronized(noteAndAcc[1].getChildren()) {
+                noteAndAcc[1].getChildren().add(accidental);
+            }
 
             if (s.muteNoteVal() == 0) {
                 s.setImage(il.getSpriteFX(s.getInstrument().imageIndex()));
