@@ -165,7 +165,7 @@ public class NoteMatrix {
     /** Redraws the entire matrix.
      * @throws InterruptedException */
     public void redraw() throws InterruptedException {
-        lock.tryLock(300, TimeUnit.MICROSECONDS);
+        lock.lock();
         try {
             for (int i = 0; i < Values.NOTELINES_IN_THE_WINDOW; i++) {
                 try {
@@ -181,6 +181,7 @@ public class NoteMatrix {
         }
         if (focusPane != null)
             focusPane.redraw();
+        StateMachine.setMeasureLineNum(theStaff.getControlPanel().getScrollbar().valueProperty().intValue());
     }
 
     /**

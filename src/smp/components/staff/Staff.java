@@ -202,9 +202,18 @@ public class Staff {
      *            The first measure line number (usually between 1 and 375) that
      *            is to be displayed.
      */
-    public void setLocationScroll(int num) {
-        this.getStaffImages().updateStaffMeasureLines(num);
-        this.redraw();
+    public void setLocationScroll(final int num) {
+        Platform.runLater(new Runnable() {
+
+            @Override
+            public void run() {
+
+                getStaffImages().updateStaffMeasureLines(num);
+                redraw();
+
+            }
+
+        });
     }
 
     /**
