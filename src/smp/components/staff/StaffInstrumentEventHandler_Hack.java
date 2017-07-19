@@ -14,6 +14,8 @@ import smp.components.staff.sequences.StaffNoteLine;
 import smp.components.topPanel.ButtonLine;
 import smp.stateMachine.Settings;
 import smp.stateMachine.StateMachine;
+import javafx.beans.value.ChangeListener;
+import javafx.beans.value.ObservableValue;
 import javafx.collections.ObservableList;
 import javafx.event.Event;
 import javafx.event.EventHandler;
@@ -91,6 +93,9 @@ public class StaffInstrumentEventHandler_Hack implements EventHandler<Event> {
     private static int acc = 0;
     
     
+    private static boolean left;
+    private static boolean right;
+    
     /**
      * Constructor for this StaffEventHandler. This creates a handler that takes
      * a StackPane and a position on the staff.
@@ -122,6 +127,21 @@ public class StaffInstrumentEventHandler_Hack implements EventHandler<Event> {
 //        accList = acc.getChildren();//-
         theStaff = s;
         accSilhouette = new ImageView();
+        
+        //drag add note by scrolling
+        s.getControlPanel().getScrollbar().valueProperty().addListener(new ChangeListener<Number>() {
+            public void changed(ObservableValue<? extends Number> ov,
+                    Number old_val, Number new_val) {
+	            	if(left) {
+	            		InstrumentIndex theInd = ButtonLine.getSelectedInstrument();
+	            		leftMousePressed(theInd);
+	            	} else if (right) {
+	            		InstrumentIndex theInd = ButtonLine.getSelectedInstrument();
+	            		rightMousePressed(theInd);
+	            	}
+                }
+            });
+        
         if ((Settings.debug & 0b10) == 0b10) {
 //            System.out.println("Line: " + l);
 //            System.out.println("Position: " + pos);
@@ -145,7 +165,7 @@ public class StaffInstrumentEventHandler_Hack implements EventHandler<Event> {
 
 	@Override
     public void handle(Event event) {
-    	
+//    	System.out.println(event);
 		boolean newNote = false;
     	if(event instanceof MouseEvent){
     		int lineTmp = getLine(((MouseEvent)event).getX());
@@ -208,6 +228,13 @@ public class StaffInstrumentEventHandler_Hack implements EventHandler<Event> {
             mouseExited(theInd);
             event.consume();
         }
+        else if (event.getEventType() == MouseEvent.MOUSE_RELEASED) {
+        	if(left) {
+        		left = false;
+        	} else if (right) {
+        		right = false;
+        	}
+        }
 
     }
 
@@ -220,6 +247,7 @@ public class StaffInstrumentEventHandler_Hack implements EventHandler<Event> {
      *            currently selected.
      */
     private void leftMousePressed(InstrumentIndex theInd) {
+    	left = true;
         if (StateMachine.getButtonsPressed().contains(KeyCode.E)) {
             removeNote();
         } else {
@@ -292,7 +320,7 @@ public class StaffInstrumentEventHandler_Hack implements EventHandler<Event> {
      *            extended later to selectively remove instruments.
      */
     private void rightMousePressed(InstrumentIndex theInd) {
-
+    	right = true;
         removeNote();
 
     }
