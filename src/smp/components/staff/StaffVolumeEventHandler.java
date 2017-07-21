@@ -10,6 +10,7 @@ import javafx.scene.image.ImageView;
 import javafx.scene.input.DragEvent;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseEvent;
+import javafx.scene.input.ScrollEvent;
 import javafx.scene.layout.StackPane;
 import javafx.scene.text.Text;
 
@@ -47,9 +48,59 @@ public class StaffVolumeEventHandler implements EventHandler<Event> {
 	private static double mouseX;
 	private static double mouseY;
 
+	// the source node will continue registering mouse events but this flag will
+	// turn on if drag exit the source node. when it is on it will block the
+	// mouse events.
+	private boolean blockSourceDrag;
 	/** Makes a new StaffVolumeEventHandler. */
     public StaffVolumeEventHandler(StackPane st, ImageLoader i) {
         stp = st;
+        
+        stp.addEventFilter(MouseEvent.DRAG_DETECTED , new EventHandler<MouseEvent>() {
+            @Override
+            public void handle(MouseEvent mouseEvent) {
+                stp.startFullDrag();
+            }
+        });
+        
+        stp.setOnMouseDragExited(new EventHandler<MouseEvent>() {
+            @Override
+            public void handle(MouseEvent mouseEvent) {
+                System.out.println("somde");
+                blockSourceDrag = true;
+            }
+        });
+        stp.setOnMouseDragEntered(new EventHandler<MouseEvent>() {
+            @Override
+            public void handle(MouseEvent mouseEvent) {
+                System.out.println("somde");
+                blockSourceDrag = false;
+            }
+        });
+//
+//        
+//        stp.setOnDragExited(new EventHandler<DragEvent>() {
+//            @Override
+//            public void handle(DragEvent dragEvent) {
+//                System.out.println("sode");
+//            }
+//        });
+        
+        stp.setOnScroll(new EventHandler<ScrollEvent>(){
+
+			@Override
+			public void handle(ScrollEvent event) {
+				// TODO Auto-generated method stub
+				if(press){
+					System.out.println("Tes");
+					mousePressed(StaffVolumeEventHandler.event);
+					mouseEntered();
+					updateVolume();
+					System.out.println("Tes2");
+				}
+				
+			}});
+        
         il = i;
         theVolBar = (ImageView) st.getChildren().get(0);
         theVolBar.setImage(il.getSpriteFX(ImageIndex.VOL_BAR));
@@ -67,25 +118,37 @@ public class StaffVolumeEventHandler implements EventHandler<Event> {
 //        }
     	if(event instanceof MouseEvent && 
     			((MouseEvent)event).isPrimaryButtonDown()){
-    		mouseX = stp.getBoundsInParent().getMinX();
-    		mouseY = stp.getBoundsInParent().getMinY();
+    		mouseX = ((MouseEvent)event).getSceneX();//stp.getBoundsInParent().getMinX();
+    		mouseY = ((MouseEvent)event).getSceneY();//stp.getBoundsInParent().getMinY();
+        	if(blockSourceDrag && event.getEventType() != MouseEvent.MOUSE_PRESSED)
+        		return;
+//    		System.out.println(mouseX + " " + mouseY);
     		mousePressed((MouseEvent) event);
     		mouseEntered();
     	} else if(event.getEventType() == MouseEvent.MOUSE_ENTERED){
-    		mouseX = stp.getBoundsInParent().getMinX();
-    		mouseY = stp.getBoundsInParent().getMinY();
+    		mouseX = ((MouseEvent)event).getSceneX();//stp.getBoundsInParent().getMinX();
+    		mouseY = ((MouseEvent)event).getSceneY();//stp.getBoundsInParent().getMinY();
     		mouseEntered();
     	} else if(event.getEventType() == MouseEvent.MOUSE_EXITED){
     		mouseX = -1;
     		mouseY = -1;
     		mouseExited();
-    	} else {
+    	} else if(event.getEventType() == MouseEvent.MOUSE_RELEASED) {
+    		press = false;
+    		blockSourceDrag = false;
+    		mouseEntered();
+    	} 
+    	else {
     		mouseEntered();
     	}
     }
 
     /** Called whenever the mouse is pressed. */
+    private static boolean press;
+    private static MouseEvent event;
     private void mousePressed(MouseEvent event) {
+    	press = true;
+    	StaffVolumeEventHandler.event = event;
         if (!theLine.getNotes().isEmpty()) {
         	if(event.getY() < 0 || stp.getHeight() < event.getY())
         		return;
