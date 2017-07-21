@@ -69,40 +69,17 @@ public class StaffVolumeEventHandler implements EventHandler<Event> {
         stp.setOnMouseDragExited(new EventHandler<MouseEvent>() {
             @Override
             public void handle(MouseEvent mouseEvent) {
-                System.out.println("somde");
+                System.out.println("somdEx");
                 blockSourceDrag = true;
             }
         });
         stp.setOnMouseDragEntered(new EventHandler<MouseEvent>() {
             @Override
             public void handle(MouseEvent mouseEvent) {
-                System.out.println("somde");
+                System.out.println("somdEn");
                 blockSourceDrag = false;
             }
         });
-//
-//        
-//        stp.setOnDragExited(new EventHandler<DragEvent>() {
-//            @Override
-//            public void handle(DragEvent dragEvent) {
-//                System.out.println("sode");
-//            }
-//        });
-        
-        stp.setOnScroll(new EventHandler<ScrollEvent>(){
-
-			@Override
-			public void handle(ScrollEvent event) {
-				// TODO Auto-generated method stub
-				if(press){
-					System.out.println("Tes");
-					mousePressed(StaffVolumeEventHandler.event);
-					mouseEntered();
-					updateVolume();
-					System.out.println("Tes2");
-				}
-				
-			}});
         
         il = i;
         theVolBar = (ImageView) st.getChildren().get(0);
@@ -279,14 +256,13 @@ public class StaffVolumeEventHandler implements EventHandler<Event> {
     
     public void addScrollDragListener(Slider scrollbar) {
     	//scrollbar needs to get initialized first
-//    	System.out.println("ADDSCROLLDRAGLISTNER");
     	scrollbar.valueProperty().addListener(new ChangeListener<Number>(){
 
 			@Override
 			public void changed(ObservableValue<? extends Number> observable, Number oldValue, Number newValue) {
 				// TODO Auto-generated method stub
 
-				if(stpHasMouse()){
+				if(stpHasMouse() && press){
 					mousePressed(StaffVolumeEventHandler.event);
 					mouseEntered();
 					updateVolume();
