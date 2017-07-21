@@ -4,8 +4,11 @@ import smp.ImageIndex;
 import smp.ImageLoader;
 import smp.components.Values;
 import smp.components.staff.sequences.StaffNoteLine;
+import javafx.beans.value.ChangeListener;
+import javafx.beans.value.ObservableValue;
 import javafx.event.Event;
 import javafx.event.EventHandler;
+import javafx.scene.control.Slider;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.DragEvent;
 import javafx.scene.input.KeyEvent;
@@ -272,5 +275,22 @@ public class StaffVolumeEventHandler implements EventHandler<Event> {
     @Override
     public String toString() {
         return "Line: " + line;
+    }
+    
+    public void addScrollDragListener(Slider scrollbar) {
+    	//scrollbar needs to get initialized first
+//    	System.out.println("ADDSCROLLDRAGLISTNER");
+    	scrollbar.valueProperty().addListener(new ChangeListener<Number>(){
+
+			@Override
+			public void changed(ObservableValue<? extends Number> observable, Number oldValue, Number newValue) {
+				// TODO Auto-generated method stub
+
+				if(stpHasMouse()){
+					mousePressed(StaffVolumeEventHandler.event);
+					mouseEntered();
+					updateVolume();
+				}
+			}});
     }
 }

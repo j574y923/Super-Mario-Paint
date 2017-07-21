@@ -14,6 +14,7 @@ import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.StackPane;
 import smp.ImageIndex;
 import smp.ImageLoader;
+import smp.components.Values;
 import smp.components.buttons.AddButton;
 import smp.components.buttons.ArrowButton;
 import smp.components.buttons.DeleteButton;
@@ -30,6 +31,7 @@ import smp.components.buttons.StopButton;
 import smp.components.buttons.TempoAdjustButton;
 import smp.components.general.Utilities;
 import smp.components.staff.Staff;
+import smp.components.staff.StaffVolumeEventHandler;
 import smp.components.staff.sequences.StaffSequence;
 import smp.fx.Dialog;
 import smp.fx.SMPFXController;
@@ -282,7 +284,10 @@ public class Controls {
             }
 
         });
-
+        for(int i = 0 ; i < Values.NOTELINES_IN_THE_WINDOW; i++){
+        	StaffVolumeEventHandler sveh = theStaff.getNoteMatrix().getVolHandler(i);
+        	sveh.addScrollDragListener(scrollbar);
+        }
     }
 
     /**
