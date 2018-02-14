@@ -9,6 +9,7 @@ import javafx.scene.input.MouseEvent;
 import smp.ImageIndex;
 import smp.ImageLoader;
 import smp.components.general.ImageToggleButton;
+import smp.components.staff.mediaoutput.VideoOutputter;
 import smp.fx.SMPFXController;
 import smp.stateMachine.StateMachine;
 
@@ -55,10 +56,15 @@ public class ClipboardButton extends ImageToggleButton {
 					reactPressed(null);
 			}
 		});
+		System.out.println("controller = " + controller);
 	}
 
     @Override
     public void reactPressed(MouseEvent e) {
+    	
+//    	AudioOutputter test = new AudioOutputter();
+    	VideoOutputter test = new VideoOutputter(controller.getStaffInstruments().getScene());//.getChildren().get(0));//
+    	
         if (isPressed) {
             isPressed = false;
             releaseImage();
