@@ -63,7 +63,8 @@ public class ClipboardButton extends ImageToggleButton {
     public void reactPressed(MouseEvent e) {
     	
 //    	AudioOutputter test = new AudioOutputter();
-    	VideoOutputter test = new VideoOutputter(controller.getStaffInstruments().getScene());//.getChildren().get(0));//
+    	VideoOutputter test = new VideoOutputter(controller.getStaffPlayBars());//.getScene());//.getChildren().get(0));//
+    	test.processOutput();
     	
         if (isPressed) {
             isPressed = false;

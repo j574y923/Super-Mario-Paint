@@ -1,29 +1,22 @@
 package smp.components.staff.mediaoutput;
 
-import java.awt.AWTException;
-import java.awt.Rectangle;
-import java.awt.Robot;
 import java.awt.image.BufferedImage;
-import java.io.BufferedOutputStream;
-import java.io.File;
+import java.awt.image.DataBufferInt;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CompletionService;
+import java.util.concurrent.ExecutorCompletionService;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-
-import javax.imageio.ImageIO;
-
-import javafx.concurrent.Task;
 import javafx.embed.swing.SwingFXUtils;
+import javafx.geometry.Bounds;
 import javafx.scene.Node;
-import javafx.scene.Scene;
-import javafx.scene.SnapshotParameters;
 import javafx.scene.image.WritableImage;
-import smp.fx.SMPFXController;
-
+import javafx.scene.layout.HBox;
+import smp.components.Values;
 import com.objectplanet.image.PngEncoder;
 
 /**
@@ -47,265 +40,131 @@ import com.objectplanet.image.PngEncoder;
  */
 public class VideoOutputter {
 
-	SMPFXController controller;
-	Scene scene;
-	Node n;
+	private HBox theStaffPlayBars;
 	
-//	public VideoOutputter(SMPFXController controller) {
-//		test();
-//		this.controller = controller;
-//	}
-	
-	public VideoOutputter(Scene scene) {
-		// TODO Auto-generated constructor stub
-		System.out.println(scene);
-		this.scene = scene;
-//		test();
-		testWithTwoThreadsParallel();
-//		test2();
-//		testFFMPEG();
-//		test1MultiThreaded();
-	}
-	
-	public VideoOutputter(Node n) {
-		this.n = n;
-		test1();
-//		test2();
-//		testFFMPEG();
-//		test1MultiThreaded();
-	}
+	WritableImage sceneImageA;
+	WritableImage sceneImageB;
 
+	private final CompletionService<Boolean> executorService;
+	
 	/**
-	 * test to use javafx's scene snasphot. 30x ~ 3s
+	 * FrameProcessor is a worker that outputs image of sceneImageA rendered
+	 * with one playbar at its respective position from sceneImageB with
+	 * Objectplanet's PngEncoder (significantly faster than ImageIO.write()).
 	 */
-	public void test() {
-//		System.out.println(controller);
-//		System.out.println(scene);
-//		Scene scene = controller.getAddButton().getScene();//.snapshot(writableImage);
+	class FrameProcessor implements Callable<Boolean> {// extends Task<Boolean> {
 
-		PngEncoder encoder = new PngEncoder();;
-		long timeStart = System.currentTimeMillis();
+		int id;
+		PngEncoder encoder;
+		int x,y,w,h;
 		
-		for(int i = 0; i < 120; i++) {
-		    WritableImage image = scene.snapshot(null);
-//		    File file = new File("./tmp/aa_trash_test_" + i + ".jpg");
-		    try {
-//		    	BufferedOutputStream imageOutputStream = new BufferedOutputStream(new FileOutputStream(file));
-//		        ImageIO.write(SwingFXUtils.fromFXImage(image, null), "png", file);
-//		    	imageOutputStream.close();
-		         FileOutputStream fout = new FileOutputStream("./tmp/aa_trash_test_" + i + ".png");
-		         encoder.encode(SwingFXUtils.fromFXImage(image, null), fout);
-		         fout.close();
-		    } catch (IOException e) {
-		        e.printStackTrace();
-		    }
+		public FrameProcessor(int id) {
+			this.id = id;
+			encoder = new PngEncoder();
+			
+			Node staffPlayBar = theStaffPlayBars.getChildren().get(id);
+			Bounds staffPlayBarBounds = staffPlayBar.localToScene(staffPlayBar.getBoundsInLocal());
+			x = (int) staffPlayBarBounds.getMinX();
+			y = (int) staffPlayBarBounds.getMinY();
+			w = (int) staffPlayBarBounds.getWidth();
+			h = (int) staffPlayBarBounds.getHeight();
 		}
-		System.out.println(System.currentTimeMillis() - timeStart);
-//		System.exit(0);
-	}
-	
-	/**
-	 * test to use javafx's scene snasphot. WITH PLANETOBJECT'S PNGENCODER. WITH THREE THREADS. 30x ~ 0.3s
-	 */
-	public void testWithTwoThreadsParallel() {
-
-		final PngEncoder encoder = new PngEncoder();
-		final PngEncoder encoder2 = new PngEncoder();
-		PngEncoder encoder3 = new PngEncoder();
 		
-		Task task = new Task<Void>() {
-			@Override
-			public Void call() {
-				for (int i = 0; i < 40; i++) {
-					WritableImage image = scene.snapshot(null);
-					try {
-						FileOutputStream fout = new FileOutputStream("./tmp/aa_trash_test_" + i + ".png");
-						encoder.encode(SwingFXUtils.fromFXImage(image, null), fout);
-						fout.close();
-					} catch (IOException e) {
-						e.printStackTrace();
-					}
+		@Override
+		public Boolean call() throws Exception {
+			
+			//overwrite pixels at id position to include playbar
+			BufferedImage sceneImageACopy = SwingFXUtils.fromFXImage(sceneImageA, null);
+			BufferedImage sceneImageBCopy = SwingFXUtils.fromFXImage(sceneImageB, null);
+			//we want to directly access the int buffer for speed
+			int[] sceneImageACopyDBI = ((DataBufferInt) sceneImageACopy.getRaster().getDataBuffer()).getData();
+			int[] sceneImageBCopyDBI = ((DataBufferInt) sceneImageBCopy.getRaster().getDataBuffer()).getData();
+			
+			for (int y0 = y; y0 < y + h; y0++) {
+				for (int x0 = x; x0 < x + w; x0++) {
+					// int rgbB = sceneImageBCopy.getRGB(x0, y0);
+					// sceneImageACopy.setRGB(x0, y0, rgbB);
+					int pixel = x0 + y0 * sceneImageACopy.getWidth();
+					int rgbB = sceneImageBCopyDBI[pixel];
+					sceneImageACopyDBI[pixel] = rgbB;
 				}
-				
-				return null;
-			}
-		};
-		Task task2 = new Task<Void>() {
-			@Override
-			public Void call() {
-				for (int i = 41; i < 80; i++) {
-					WritableImage image = scene.snapshot(null);
-					try {
-						FileOutputStream fout = new FileOutputStream("./tmp/aa_trash_test_" + i + ".png");
-						encoder2.encode(SwingFXUtils.fromFXImage(image, null), fout);
-						fout.close();
-					} catch (IOException e) {
-						e.printStackTrace();
-					}
-				}
-				
-				return null;
-			}
-		};
-		long timeStart = System.currentTimeMillis();
-		new Thread(task).start();
-		new Thread(task2).start();
-		
-		for (int i = 81; i < 120; i++) {
-			WritableImage image = scene.snapshot(null);
-			try {
-				FileOutputStream fout = new FileOutputStream("./tmp/aa_trash_test_" + i + ".png");
-				encoder3.encode(SwingFXUtils.fromFXImage(image, null), fout);
-				fout.close();
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
-		}
-		
-		System.out.println(System.currentTimeMillis() - timeStart);
-//		System.exit(0);
-	}
-	
-	/**
-	 * test to use javafx's node snasphot. 30x (on one staffline) ~ 0.5s
-	 */
-	public void test1() {
-//		System.out.println(controller);
-//		System.out.println(scene);
-//		Scene scene = controller.getAddButton().getScene();//.snapshot(writableImage);
-
-		long timeStart = System.currentTimeMillis();
-
-		try {
-			for (int i = 0; i < 120; i++) {
-				WritableImage image = n.snapshot(null, null);// scene.snapshot(null);
-				File file = new File("./tmp/aa_trash_test_" + i + ".png");
-				ImageIO.write(SwingFXUtils.fromFXImage(image, null), "png", file);
-
-			}
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-		System.out.println(System.currentTimeMillis() - timeStart);
-//		System.exit(0);
-	}
-	
-	/**
-	 * test to use javafx's node snasphot WITH 6 THREADS ON A SCHEDULE. 30x (on one staffline) ~ 1.5s
-	 */
-	boolean finished = false;
-	long timeStart;
-	public void test1MultiThreaded() {
-//		System.out.println(controller);
-//		System.out.println(scene);
-//		Scene scene = controller.getAddButton().getScene();//.snapshot(writableImage);
-
-		final int THREADS = 3;
-		final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(THREADS);
-		
-		final ConcurrentLinkedQueue <WritableImage> sharedStore  = new ConcurrentLinkedQueue <>();
-		
-	     
-		
-		class MyClass implements Runnable {
-			int i;
-			PngEncoder encoder;
-			public MyClass(int i) {
-				this.i = i;
-				encoder = new PngEncoder();
 			}
 			
-		    @Override
-		    public void run() {
-//				for (int j = 0; j < 20; j++) {
-//					WritableImage image = n.snapshot(null, null);// scene.snapshot(null);
-//					File file = new File("./tmp/aa_trash_test_" + (i * j) + ".png");
-//					try {
-//						ImageIO.write(SwingFXUtils.fromFXImage(image, null), "png", file);
-//					} catch (IOException e) {
-//						// TODO Auto-generated catch block
-//						e.printStackTrace();
-//					}
-//				}
-				
-
-//				System.out.println("WOT" + i);
-				
-				if(!sharedStore.isEmpty()) {
-					WritableImage image = sharedStore.poll();
-//					File file = new File("./tmp/aa_trash_test_" + i + ".png");
-					try {
-//						ImageIO.write(SwingFXUtils.fromFXImage(image, null), "png", file);
-				         FileOutputStream fout = new FileOutputStream("./tmp/aa_trash_test_" + i + ".png");
-				         encoder.encode(SwingFXUtils.fromFXImage(image, null), fout);
-					} catch (IOException e) {
-						// TODO Auto-generated catch block
-						e.printStackTrace();
-					}
-					i+=THREADS;
-				}
-				
-				if (finished && sharedStore.isEmpty()) {
-					System.out.println(System.currentTimeMillis() - timeStart);
-					scheduler.shutdown();
-				}
-		    }
+			FileOutputStream fout = new FileOutputStream("./tmp/aa_trash_test_" + id + ".png");
+			encoder.encode(sceneImageACopy, fout);
+			fout.close();
+			return true;
 		}
-		
-		for (int i = 1; i <= THREADS; i++) {
-		    scheduler.scheduleAtFixedRate(
-		             new MyClass(i),
-		             1*i,
-		             1,
-		             TimeUnit.MILLISECONDS
-		             );
-		}
-
-		timeStart = System.currentTimeMillis();
-		
-		for (int i = 0; i < 120; i++) {
-			WritableImage image = scene.snapshot(null);//n.snapshot(null, null);
-			// File file = new File("./tmp/aa_trash_test_" + i + ".png");
-			// ImageIO.write(SwingFXUtils.fromFXImage(image, null), "png", file);
-			sharedStore.add(image);
-		}
-
-		System.out.println(System.currentTimeMillis() - timeStart);
-		finished = true;
-		
-//		System.exit(0);
 	}
 	
-	/**
-	 * test to use java awt's robot screencapture. 30x ~ 3s
-	 */
-	public void test2() {
-		Robot r = null;
+	List<FrameProcessor> frameProcessors;
+	
+	public VideoOutputter(HBox staffPlayBars) {
+		theStaffPlayBars = staffPlayBars;
+		
+		final ExecutorService pool = Executors.newFixedThreadPool(Values.NOTELINES_IN_THE_WINDOW);
+		executorService = new ExecutorCompletionService<Boolean>(pool);
+		
+		frameProcessors = new ArrayList<>();
+		for (int i = 0; i < Values.NOTELINES_IN_THE_WINDOW; i++)
+			frameProcessors.add(new FrameProcessor(i));
+	}
+	
+	public void processOutput() {
+
+		long start = System.currentTimeMillis();
+		/** 1) Snapshot(A) the scene. */
+		sceneImageA = theStaffPlayBars.getScene().snapshot(null);
+		
+		/** 2) Make all playbars visible. */
+		for(Node n : theStaffPlayBars.getChildren())
+			n.setVisible(true);
+		
+		/** 3) Snapshot(B) the scene with all playbars visible. */
+		sceneImageB = theStaffPlayBars.getScene().snapshot(null);
+		
+		/** 		
+		 * 	4) Use 10 workers in parallel. For each worker 1..10, 
+		 * 		   >Calculate worker's frame (f1) from (f)
+		 * 		   if line is on a frame (f1)
+		 * 				redraw (A) but on their respective staffline 
+		 * 				(1..10) draw playbar pixels from (B) at their positions.
+		 */
+		for(FrameProcessor fp : frameProcessors)
+			executorService.submit(fp);
+		
 		try {
-			r = new Robot();
-		} catch (AWTException e1) {
-			// TODO Auto-generated catch block
-			e1.printStackTrace();
-		}
-
-		long timeStart = System.currentTimeMillis();
-		try {
-			for (int i = 0; i < 120; i++) {
-				BufferedImage screencapture = r.createScreenCapture(new Rectangle(0, 0, 800, 600));
-
-				// Save as PNG
-				File file = new File("./tmp/aa_trash_test_" + i + ".png");
-
-				ImageIO.write(screencapture, "png", file);
-
-			}
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
+			for(FrameProcessor fp : frameProcessors)
+				executorService.take();
+		} catch (InterruptedException e) {
 			e.printStackTrace();
 		}
-		System.out.println(System.currentTimeMillis() - timeStart);
-		System.out.println("ROBOT");
-//		System.exit(0);
+		System.out.println(System.currentTimeMillis()- start);
+	}
+	
+	//simple version which is 2x slower
+	public void processOutput2() {
+
+		PngEncoder encoder = new PngEncoder();
+		long start = System.currentTimeMillis();
+		
+		/** 2) Make all playbars visible. */
+		for(int i = 0; i < theStaffPlayBars.getChildren().size(); i++) {
+			Node n =  theStaffPlayBars.getChildren().get(i);
+			n.setVisible(true);
+			WritableImage sceneTest = theStaffPlayBars.getScene().snapshot(null);
+			try {
+				FileOutputStream fout = new FileOutputStream("./tmp/aa_trash_test_" + i + ".png");
+				encoder.encode(SwingFXUtils.fromFXImage(sceneTest, null), fout);
+				fout.close();
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+			n.setVisible(false);
+		}
+		
+		System.out.println(System.currentTimeMillis()- start);
 	}
 	
 	public void testFFMPEG() {
