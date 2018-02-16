@@ -17,6 +17,8 @@ import javafx.scene.Node;
 import javafx.scene.image.WritableImage;
 import javafx.scene.layout.HBox;
 import smp.components.Values;
+import smp.components.staff.Staff;
+
 import com.objectplanet.image.PngEncoder;
 
 /**
@@ -40,6 +42,7 @@ import com.objectplanet.image.PngEncoder;
  */
 public class VideoOutputter {
 
+	private Staff theStaff;
 	private HBox theStaffPlayBars;
 	
 	WritableImage sceneImageA;
@@ -52,7 +55,7 @@ public class VideoOutputter {
 	 * with one playbar at its respective position from sceneImageB with
 	 * Objectplanet's PngEncoder (significantly faster than ImageIO.write()).
 	 */
-	class FrameProcessor implements Callable<Boolean> {// extends Task<Boolean> {
+	class FrameProcessor implements Callable<Boolean> {
 
 		int id;
 		PngEncoder encoder;
@@ -60,8 +63,10 @@ public class VideoOutputter {
 		
 		public FrameProcessor(int id) {
 			this.id = id;
-			encoder = new PngEncoder();
-			
+			// PngEncoder.INDEXED_COLORS_ORIGINAL seems to look the best
+			// PngEncoder.BEST_SPEED speeds it up by an additional ~1.3x
+			encoder = new PngEncoder(PngEncoder.INDEXED_COLORS_ORIGINAL, PngEncoder.BEST_SPEED);
+
 			Node staffPlayBar = theStaffPlayBars.getChildren().get(id);
 			Bounds staffPlayBarBounds = staffPlayBar.localToScene(staffPlayBar.getBoundsInLocal());
 			x = (int) staffPlayBarBounds.getMinX();
@@ -72,14 +77,14 @@ public class VideoOutputter {
 		
 		@Override
 		public Boolean call() throws Exception {
-			
-			//overwrite pixels at id position to include playbar
+
+			// overwrite pixels at id position to include playbar
 			BufferedImage sceneImageACopy = SwingFXUtils.fromFXImage(sceneImageA, null);
 			BufferedImage sceneImageBCopy = SwingFXUtils.fromFXImage(sceneImageB, null);
-			//we want to directly access the int buffer for speed
+			// we want to directly access the int buffer for speed
 			int[] sceneImageACopyDBI = ((DataBufferInt) sceneImageACopy.getRaster().getDataBuffer()).getData();
 			int[] sceneImageBCopyDBI = ((DataBufferInt) sceneImageBCopy.getRaster().getDataBuffer()).getData();
-			
+
 			for (int y0 = y; y0 < y + h; y0++) {
 				for (int x0 = x; x0 < x + w; x0++) {
 					// int rgbB = sceneImageBCopy.getRGB(x0, y0);
@@ -93,13 +98,25 @@ public class VideoOutputter {
 			FileOutputStream fout = new FileOutputStream("./tmp/aa_trash_test_" + id + ".png");
 			encoder.encode(sceneImageACopy, fout);
 			fout.close();
+			
+			id += Values.NOTELINES_IN_THE_WINDOW;
 			return true;
 		}
 	}
 	
 	List<FrameProcessor> frameProcessors;
 	
-	public VideoOutputter(HBox staffPlayBars) {
+	/** Save time. Capture B when all playbars are visible, capture A when they aren't. */
+	private boolean visibleState;
+	
+	/**
+	 * Pass in staffPlayBars and capture them as they change. it's the only
+	 * thing that changes as you play an arrangement.
+	 * 
+	 * @param staffPlayBars
+	 */
+	public VideoOutputter(Staff staff, HBox staffPlayBars) {
+		theStaff = staff;
 		theStaffPlayBars = staffPlayBars;
 		
 		final ExecutorService pool = Executors.newFixedThreadPool(Values.NOTELINES_IN_THE_WINDOW);
@@ -111,18 +128,32 @@ public class VideoOutputter {
 	}
 	
 	public void processOutput() {
+		
+	}
+	
+	/**
+	 * output up to 10 images for each line in the window
+	 */
+	public void processWindow() {
+		long timeStart = System.currentTimeMillis();
 
-		long start = System.currentTimeMillis();
 		/** 1) Snapshot(A) the scene. */
-		sceneImageA = theStaffPlayBars.getScene().snapshot(null);
-		
+		if (visibleState)
+			sceneImageB = theStaffPlayBars.getScene().snapshot(null);
+		else
+			sceneImageA = theStaffPlayBars.getScene().snapshot(null);
+
 		/** 2) Make all playbars visible. */
-		for(Node n : theStaffPlayBars.getChildren())
-			n.setVisible(true);
-		
+		visibleState = !visibleState;
+		for (Node n : theStaffPlayBars.getChildren())
+			n.setVisible(visibleState);
+
 		/** 3) Snapshot(B) the scene with all playbars visible. */
-		sceneImageB = theStaffPlayBars.getScene().snapshot(null);
-		
+		if (visibleState)
+			sceneImageB = theStaffPlayBars.getScene().snapshot(null);
+		else
+			sceneImageA = theStaffPlayBars.getScene().snapshot(null);
+
 		/** 		
 		 * 	4) Use 10 workers in parallel. For each worker 1..10, 
 		 * 		   >Calculate worker's frame (f1) from (f)
@@ -139,32 +170,7 @@ public class VideoOutputter {
 		} catch (InterruptedException e) {
 			e.printStackTrace();
 		}
-		System.out.println(System.currentTimeMillis()- start);
-	}
-	
-	//simple version which is 2x slower
-	public void processOutput2() {
-
-		PngEncoder encoder = new PngEncoder();
-		long start = System.currentTimeMillis();
-		
-		/** 2) Make all playbars visible. */
-		for(int i = 0; i < theStaffPlayBars.getChildren().size(); i++) {
-			Node n =  theStaffPlayBars.getChildren().get(i);
-			n.setVisible(true);
-			WritableImage sceneTest = theStaffPlayBars.getScene().snapshot(null);
-			try {
-				FileOutputStream fout = new FileOutputStream("./tmp/aa_trash_test_" + i + ".png");
-				encoder.encode(SwingFXUtils.fromFXImage(sceneTest, null), fout);
-				fout.close();
-			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-			n.setVisible(false);
-		}
-		
-		System.out.println(System.currentTimeMillis()- start);
+		System.out.println(System.currentTimeMillis() - timeStart);
 	}
 	
 	public void testFFMPEG() {
