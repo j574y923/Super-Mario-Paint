@@ -10,7 +10,9 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Queue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletionService;
 import java.util.concurrent.ExecutorCompletionService;
@@ -53,14 +55,6 @@ import com.objectplanet.image.PngEncoder;
  */
 public class VideoOutputter {
 
-	private Staff theStaff;
-	private HBox theStaffPlayBars;
-	
-	WritableImage sceneImageA;
-	WritableImage sceneImageB;
-
-	private final CompletionService<Boolean> executorService;
-	
 	/**
 	 * FrameProcessor is a worker that outputs image of sceneImageA rendered
 	 * with one playbar at its respective position from sceneImageB with
@@ -69,14 +63,10 @@ public class VideoOutputter {
 	class FrameProcessor implements Callable<Boolean> {
 
 		int id;
-		PngEncoder encoder;
 		int x,y,w,h;
 		
 		public FrameProcessor(int id) {
 			this.id = id;
-			// PngEncoder.INDEXED_COLORS_ORIGINAL seems to look the best
-			// PngEncoder.BEST_SPEED speeds it up by an additional ~1.3x
-			encoder = new PngEncoder(PngEncoder.INDEXED_COLORS_ORIGINAL, PngEncoder.BEST_SPEED);
 
 			Node staffPlayBar = theStaffPlayBars.getChildren().get(id);
 			Bounds staffPlayBarBounds = staffPlayBar.localToScene(staffPlayBar.getBoundsInLocal());
@@ -106,11 +96,7 @@ public class VideoOutputter {
 				}
 			}
 			
-			FileOutputStream fout = new FileOutputStream("./tmp/aa_trash_test_" + id + ".png");
-			encoder.encode(sceneImageACopy, fout);
-			fout.close();
-			
-			id += Values.NOTELINES_IN_THE_WINDOW;
+			processedFrames[id] = sceneImageACopy;
 			return true;
 		}
 		
@@ -119,10 +105,29 @@ public class VideoOutputter {
 		}
 	}
 	
-	List<FrameProcessor> frameProcessors;
+	private Staff theStaff;
+	private HBox theStaffPlayBars;
 	
-	/** Save time. Capture B when all playbars are visible, capture A when they aren't. */
+	private WritableImage sceneImageA;
+	private WritableImage sceneImageB;
+
+	private final CompletionService<Boolean> executorService;
+	
+	private List<FrameProcessor> frameProcessors = new ArrayList<>();
+
+	/**
+	 * Save time. Capture B when all playbars are visible, capture A when they
+	 * aren't.
+	 */
 	private boolean visibleState;
+
+	/**
+	 * FrameProcessors place processed frames at their respective indices. Next
+	 * they are enqueued to ffmpegInput.
+	 */
+	private BufferedImage[] processedFrames = new BufferedImage[Values.NOTELINES_IN_THE_WINDOW];
+
+	private Queue<BufferedImage> queuedFrames = new LinkedList<>();
 	
 	/**
 	 * Pass in staffPlayBars and capture them as they change. it's the only
@@ -137,7 +142,6 @@ public class VideoOutputter {
 		final ExecutorService pool = Executors.newFixedThreadPool(Values.NOTELINES_IN_THE_WINDOW);
 		executorService = new ExecutorCompletionService<Boolean>(pool);
 		
-		frameProcessors = new ArrayList<>();
 		for (int i = 0; i < Values.NOTELINES_IN_THE_WINDOW; i++)
 			frameProcessors.add(new FrameProcessor(i));
 	}
@@ -194,6 +198,13 @@ public class VideoOutputter {
 			e.printStackTrace();
 		}
 		System.out.println(System.currentTimeMillis() - timeStart);
+
+		/** enqueue processedFrames to pipe into ffmpegInput */
+		for (int i = 0; i < numLines; i++)
+			if (processedFrames[i] != null) {
+				queuedFrames.add(processedFrames[i]);
+				processedFrames[i] = null;
+			}
 	}
 	
 	public void testFFMPEG() {
@@ -201,7 +212,6 @@ public class VideoOutputter {
 		try {
 			Runtime.getRuntime().exec("ffmpeg -r 30 -f image2 -s 1920x1080 -i ./tmp/aa_trash_test_%d.png -vcodec libx264 -crf 0 -pix_fmt yuv420p test" + System.currentTimeMillis() + ".mp4");
 		} catch (IOException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 		System.out.println(System.currentTimeMillis() - timeStart);
@@ -211,37 +221,31 @@ public class VideoOutputter {
 	public void testFFMPEGyolo() {
 		try {
 			File ffmpeg_output_msg = new File("ffmpeg_output_msg.txt");
-			ProcessBuilder pb = new ProcessBuilder("ffmpeg", "-r", "10", "-i", "pipe:0", "out1.avi");
+			ProcessBuilder pb = new ProcessBuilder("ffmpeg", "-framerate", "618/60", "-i", "pipe:0", "-r", "60", "out1.mp4");
 			pb.redirectErrorStream(true);
 			pb.redirectOutput(ffmpeg_output_msg);
 			pb.redirectInput(ProcessBuilder.Redirect.PIPE);
 			Process p = pb.start(); 
 			OutputStream ffmpegInput = p.getOutputStream();
 
+			// PngEncoder.INDEXED_COLORS_ORIGINAL seems to look the best
+			// PngEncoder.BEST_SPEED speeds it up by an additional ~1.3x
 			PngEncoder encoderFast = new PngEncoder(PngEncoder.INDEXED_COLORS_ORIGINAL, PngEncoder.BEST_SPEED);
+			System.out.println("BEGIN FFMPEG");
 			long timeStart = System.currentTimeMillis();
-			for (int i = 0; i < 191; i++) {
-				byte[] image;
-				File file = new File("./tmp/aa_trash_test_" + i + ".png");
-				image = new byte[(int) file.length()];
+			while (!queuedFrames.isEmpty()) {
 
-				FileInputStream fileInputStream;
-				fileInputStream = new FileInputStream(file);
-				fileInputStream.read(image);
-
-				ImageInputStream iis = ImageIO.createImageInputStream(new ByteArrayInputStream(image));
-				BufferedImage img = ImageIO.read(iis);
-
+				BufferedImage img = queuedFrames.poll();
+				
+				//when i did this with 384 images, pngencoder finished in 6s and imageio finished in 43s
 				encoderFast.encode(img, ffmpegInput);//ImageIO.write(img, "PNG", ffmpegInput);//
 			}
 			ffmpegInput.close();
 			System.out.println(System.currentTimeMillis() - timeStart);
 			System.out.println("FFMPEGHUH?");
 		} catch (FileNotFoundException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		} catch (IOException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 	}
