@@ -2,8 +2,13 @@ package smp.components.staff.mediaoutput;
 
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferInt;
+import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -11,6 +16,10 @@ import java.util.concurrent.CompletionService;
 import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+
+import javax.imageio.ImageIO;
+import javax.imageio.stream.ImageInputStream;
+
 import javafx.embed.swing.SwingFXUtils;
 import javafx.geometry.Bounds;
 import javafx.scene.Node;
@@ -197,6 +206,44 @@ public class VideoOutputter {
 		}
 		System.out.println(System.currentTimeMillis() - timeStart);
 		System.out.println("FFMPEG");
+	}
+	
+	public void testFFMPEGyolo() {
+		try {
+			File ffmpeg_output_msg = new File("ffmpeg_output_msg.txt");
+			ProcessBuilder pb = new ProcessBuilder("ffmpeg", "-r", "10", "-i", "pipe:0", "out1.avi");
+			pb.redirectErrorStream(true);
+			pb.redirectOutput(ffmpeg_output_msg);
+			pb.redirectInput(ProcessBuilder.Redirect.PIPE);
+			Process p = pb.start(); 
+			OutputStream ffmpegInput = p.getOutputStream();
+
+			PngEncoder encoderFast = new PngEncoder(PngEncoder.INDEXED_COLORS_ORIGINAL, PngEncoder.BEST_SPEED);
+			long timeStart = System.currentTimeMillis();
+			for (int i = 0; i < 191; i++) {
+				byte[] image;
+				File file = new File("./tmp/aa_trash_test_" + i + ".png");
+				image = new byte[(int) file.length()];
+
+				FileInputStream fileInputStream;
+				fileInputStream = new FileInputStream(file);
+				fileInputStream.read(image);
+
+				ImageInputStream iis = ImageIO.createImageInputStream(new ByteArrayInputStream(image));
+				BufferedImage img = ImageIO.read(iis);
+
+				encoderFast.encode(img, ffmpegInput);//ImageIO.write(img, "PNG", ffmpegInput);//
+			}
+			ffmpegInput.close();
+			System.out.println(System.currentTimeMillis() - timeStart);
+			System.out.println("FFMPEGHUH?");
+		} catch (FileNotFoundException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 	}
 
 	/**
