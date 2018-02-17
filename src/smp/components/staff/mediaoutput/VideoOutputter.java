@@ -18,6 +18,8 @@ import javafx.scene.image.WritableImage;
 import javafx.scene.layout.HBox;
 import smp.components.Values;
 import smp.components.staff.Staff;
+import smp.components.staff.sequences.StaffNoteLine;
+import smp.stateMachine.StateMachine;
 
 import com.objectplanet.image.PngEncoder;
 
@@ -102,6 +104,10 @@ public class VideoOutputter {
 			id += Values.NOTELINES_IN_THE_WINDOW;
 			return true;
 		}
+		
+		public int getId() {
+			return id;
+		}
 	}
 	
 	List<FrameProcessor> frameProcessors;
@@ -128,13 +134,21 @@ public class VideoOutputter {
 	}
 	
 	public void processOutput() {
-		
+		int lastLine = findLastLine();
+		for (int i = 0; i <= lastLine; i += Values.NOTELINES_IN_THE_WINDOW) {
+			theStaff.setLocation(i);
+			processWindow(Math.min(lastLine - i + 1, Values.NOTELINES_IN_THE_WINDOW));
+		}
 	}
 	
 	/**
-	 * output up to 10 images for each line in the window
+	 * output up to 10 images (1 for each line in the window)
+	 * 
+	 * @param numLines
+	 *            process frames for the first of this number of lines in the
+	 *            window
 	 */
-	public void processWindow() {
+	public void processWindow(int numLines) {
 		long timeStart = System.currentTimeMillis();
 
 		/** 1) Snapshot(A) the scene. */
@@ -161,11 +175,11 @@ public class VideoOutputter {
 		 * 				redraw (A) but on their respective staffline 
 		 * 				(1..10) draw playbar pixels from (B) at their positions.
 		 */
-		for(FrameProcessor fp : frameProcessors)
-			executorService.submit(fp);
+		for(int i = 0; i < numLines; i++)
+			executorService.submit(frameProcessors.get(i));
 		
 		try {
-			for(FrameProcessor fp : frameProcessors)
+			for(int i = 0; i < numLines; i++)
 				executorService.take();
 		} catch (InterruptedException e) {
 			e.printStackTrace();
@@ -184,4 +198,31 @@ public class VideoOutputter {
 		System.out.println(System.currentTimeMillis() - timeStart);
 		System.out.println("FFMPEG");
 	}
+
+	/**
+	 * the playbar is at <code>FrameProcessor</code>'s position, we go through a
+	 * list of conditions, and determine should we output an image?
+	 */
+	private boolean isValidFrame(FrameProcessor fp) {
+
+		return false;
+	}
+
+	/**
+	 * Finds the last line in the sequence that we are playing.
+	 * 
+	 * This is taken from Staff and modified to get the exact last line that is
+	 * played.
+	 */
+	private int findLastLine() {
+		ArrayList<StaffNoteLine> lines = theStaff.getSequence().getTheLines();
+		for (int i = lines.size() - 1; i >= 0; i--)
+			if (!lines.get(i).isEmpty()) {
+				// the 0 case
+				if(i == 0)
+					return 3;
+				return (int) (Math.ceil(i / 4.0) * 4) - 1;
+			}
+		return -1;
+    }
 }
