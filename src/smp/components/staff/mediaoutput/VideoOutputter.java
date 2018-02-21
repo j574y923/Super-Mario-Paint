@@ -105,6 +105,99 @@ public class VideoOutputter {
 		}
 	}
 	
+	class FFMPEGThread implements Runnable {
+
+		// PngEncoder.INDEXED_COLORS_ORIGINAL seems to look the best
+		// PngEncoder.BEST_SPEED speeds it up by an additional ~1.3x
+		PngEncoder encoder = new PngEncoder(PngEncoder.INDEXED_COLORS_ORIGINAL, PngEncoder.BEST_SPEED);
+		
+		/** Controls whether to run or stop. */
+		boolean run;
+
+		/** Controls whether to pause and skip behavior. */
+		boolean pause;
+
+		/** Signals to finish processing images and stop. */
+		boolean finish;
+
+		/** Counter for every next video processed. */
+		int increment = 0;
+		
+		/**
+		 * Sets run to true.
+		 */
+		@Override
+		public void run() {
+			
+			String framerate = (int) StateMachine.getTempo() + "/60";
+			String outputFile = theStaff.getArrangementName() + "_" + increment + ".mp4";
+			
+			File ffmpegOutputMsg = new File(theStaff.getArrangementName() + "_" + increment + "_err.txt");
+			ProcessBuilder pb = new ProcessBuilder("ffmpeg", "-framerate", framerate, "-i",
+					"pipe:0", "-r", "60", outputFile);
+			pb.redirectErrorStream(true);
+			pb.redirectOutput(ffmpegOutputMsg);
+			pb.redirectInput(ProcessBuilder.Redirect.PIPE);
+			Process p = null;
+			try {
+				p = pb.start();
+			} catch (IOException e1) {
+				e1.printStackTrace();
+			}
+			OutputStream ffmpegInput = p.getOutputStream();
+
+			long timeStart = System.currentTimeMillis();
+			run = true;
+			while (run) {
+
+				if (finish && queuedFrames.isEmpty())
+					break;
+
+				if (pause) {
+					try {
+						Thread.sleep(1);
+					} catch (InterruptedException e) {
+						e.printStackTrace();
+					}
+					continue;
+				}
+
+				if (!queuedFrames.isEmpty()) {
+					BufferedImage img = queuedFrames.poll();
+
+					try {
+						encoder.encode(img, ffmpegInput);
+					} catch (IOException e) {
+						e.printStackTrace();
+						run = false;
+					} 
+				} else {
+					try {
+						Thread.sleep(1);
+					} catch (InterruptedException e) {
+						e.printStackTrace();
+					}
+				}
+
+			} // end while
+
+			try {
+				ffmpegInput.close();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+
+			run = false;
+			pause = false;
+			finish = false;
+			increment++;
+
+			System.out.print(System.currentTimeMillis() - timeStart);
+			System.out.println("FFMPEGHUH?");
+
+		}
+	}
+	
 	private Staff theStaff;
 	private HBox theStaffPlayBars;
 	
@@ -129,6 +222,8 @@ public class VideoOutputter {
 
 	private Queue<BufferedImage> queuedFrames = new LinkedList<>();
 	
+	private FFMPEGThread ffmpegThread = new FFMPEGThread();
+	
 	/**
 	 * Pass in staffPlayBars and capture them as they change. it's the only
 	 * thing that changes as you play an arrangement.
@@ -145,8 +240,14 @@ public class VideoOutputter {
 		for (int i = 0; i < Values.NOTELINES_IN_THE_WINDOW; i++)
 			frameProcessors.add(new FrameProcessor(i));
 	}
-	
+
 	public void processOutput() {
+		runFFMPEGThread();
+		processSong();
+		finishFFMPEGThread();
+	}
+
+	public void processSong() {
 		int lastLine = findLastLine();
 		for (int i = 0; i <= lastLine; i += Values.NOTELINES_IN_THE_WINDOW) {
 			theStaff.setLocation(i);
@@ -155,39 +256,34 @@ public class VideoOutputter {
 	}
 	
 	/**
-	 * output up to 10 images (1 for each line in the window)
+	 * add up to 10 images (1 for each line in the window) to queuedFrames
 	 * 
 	 * @param numLines
-	 *            process frames for the first of this number of lines in the
-	 *            window
+	 *            process frames for the first numLines in the window
 	 */
 	public void processWindow(int numLines) {
 		long timeStart = System.currentTimeMillis();
 
-		/** 1) Snapshot(A) the scene. */
+		// 1) Snapshot(A) the scene.
 		if (visibleState)
 			sceneImageB = theStaffPlayBars.getScene().snapshot(null);
 		else
 			sceneImageA = theStaffPlayBars.getScene().snapshot(null);
 
-		/** 2) Make all playbars visible. */
+		// 2) Make all playbars visible.
 		visibleState = !visibleState;
 		for (Node n : theStaffPlayBars.getChildren())
 			n.setVisible(visibleState);
 
-		/** 3) Snapshot(B) the scene with all playbars visible. */
+		// 3) Snapshot(B) the scene with all playbars visible.
 		if (visibleState)
 			sceneImageB = theStaffPlayBars.getScene().snapshot(null);
 		else
 			sceneImageA = theStaffPlayBars.getScene().snapshot(null);
 
-		/** 		
-		 * 	4) Use 10 workers in parallel. For each worker 1..10, 
-		 * 		   >Calculate worker's frame (f1) from (f)
-		 * 		   if line is on a frame (f1)
-		 * 				redraw (A) but on their respective staffline 
-		 * 				(1..10) draw playbar pixels from (B) at their positions.
-		 */
+		//	4) Use 10 workers in parallel. For each worker 1..10, 
+		//			redraw (A) but on their respective staffline 
+		//			(1..10) draw playbar pixels from (B) at their positions.
 		for(int i = 0; i < numLines; i++)
 			executorService.submit(frameProcessors.get(i));
 		
@@ -199,29 +295,59 @@ public class VideoOutputter {
 		}
 		System.out.println(System.currentTimeMillis() - timeStart);
 
-		/** enqueue processedFrames to pipe into ffmpegInput */
+		// enqueue processedFrames to pipe into ffmpegInput
 		for (int i = 0; i < numLines; i++)
 			if (processedFrames[i] != null) {
 				queuedFrames.add(processedFrames[i]);
 				processedFrames[i] = null;
 			}
 	}
-	
-	public void testFFMPEG() {
-		long timeStart = System.currentTimeMillis();
-		try {
-			Runtime.getRuntime().exec("ffmpeg -r 30 -f image2 -s 1920x1080 -i ./tmp/aa_trash_test_%d.png -vcodec libx264 -crf 0 -pix_fmt yuv420p test" + System.currentTimeMillis() + ".mp4");
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-		System.out.println(System.currentTimeMillis() - timeStart);
-		System.out.println("FFMPEG");
+
+	/**
+	 * Tell ffmpegThread to start if it hasn't already and un-pause if it is
+	 * paused.
+	 */
+	public synchronized void runFFMPEGThread() {
+		if (!ffmpegThread.run)
+			new Thread(ffmpegThread).start();
+		
+		ffmpegThread.pause = false;
 	}
 	
+	/**
+	 * Tell ffmpegThread to do nothing until pause is set to false.
+	 */
+	public synchronized void pauseFFMPEGThread() {
+		if (ffmpegThread.run)
+			ffmpegThread.pause = true;
+	}
+	
+	/**
+	 * Tell ffmpegThread to not run for another cycle, effectively ending the
+	 * thread.
+	 */
+	public synchronized void stopFFMPEGThread() {
+		if (ffmpegThread.run)
+			ffmpegThread.run = false;
+	}
+	
+	/**
+	 * Tell ffmpegThread to finish processing the rest of the images on
+	 * queuedFrames. It will then stop.
+	 */
+	public synchronized void finishFFMPEGThread() {
+		if (ffmpegThread.run)
+			ffmpegThread.finish = true;
+	}
+	
+	//TODO: 
+	//-create a video.mp4 out of the first song (or until the tempo changes for later songs)
+	//-create video_%d.mp4 for each sequence of songs with the same tempos
+	//-concat all video_%d.mp4 to create desired end result
 	public void testFFMPEGyolo() {
 		try {
 			File ffmpeg_output_msg = new File("ffmpeg_output_msg.txt");
-			ProcessBuilder pb = new ProcessBuilder("ffmpeg", "-framerate", "618/60", "-i", "pipe:0", "-r", "60", "out1.mp4");
+			ProcessBuilder pb = new ProcessBuilder("ffmpeg", "-framerate", "618/60", "-i", "pipe:0", "-r", "60", "-preset", "ultrafast", "out1.mp4");
 			pb.redirectErrorStream(true);
 			pb.redirectOutput(ffmpeg_output_msg);
 			pb.redirectInput(ProcessBuilder.Redirect.PIPE);
@@ -230,15 +356,21 @@ public class VideoOutputter {
 
 			// PngEncoder.INDEXED_COLORS_ORIGINAL seems to look the best
 			// PngEncoder.BEST_SPEED speeds it up by an additional ~1.3x
-			PngEncoder encoderFast = new PngEncoder(PngEncoder.INDEXED_COLORS_ORIGINAL, PngEncoder.BEST_SPEED);
-			System.out.println("BEGIN FFMPEG");
+			PngEncoder encoderFast = new PngEncoder();//PngEncoder.INDEXED_COLORS_ORIGINAL, PngEncoder.BEST_SPEED);
+			System.out.println("BEGIN FFMPEG");    
 			long timeStart = System.currentTimeMillis();
+			int id = 0;
 			while (!queuedFrames.isEmpty()) {
 
 				BufferedImage img = queuedFrames.poll();
 				
-				//when i did this with 384 images, pngencoder finished in 6s and imageio finished in 43s
+				//when I did this with 384 images, pngencoder finished in 6s and imageio finished in 43s
 				encoderFast.encode(img, ffmpegInput);//ImageIO.write(img, "PNG", ffmpegInput);//
+//				FileOutputStream fout = new FileOutputStream("./tmp/aa_trash_test_" + id + ".png");
+//				encoderFast.encode(img, fout);
+//				fout.close();
+//				id++;
+
 			}
 			ffmpegInput.close();
 			System.out.println(System.currentTimeMillis() - timeStart);

@@ -68,7 +68,7 @@ public class ClipboardButton extends ImageToggleButton {
 //		for (int i = 0; i < 100; i++) {
 //			System.out.print(i + " ");
 			test.processOutput();
-			test.testFFMPEGyolo();
+//			test.testFFMPEGyolo();
 //		}
     	
         if (isPressed) {
