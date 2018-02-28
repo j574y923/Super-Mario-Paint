@@ -873,6 +873,52 @@ public class Staff {
                 });
             }
         }
+	}
+
+	/**
+	 * Selects the song in the arrangement at the given index and updates both
+	 * 1) the staff GUI to display the beginning of that song and 2) the program
+	 * state to reflect selecting the new song.
+	 * 
+	 * @param i
+	 *            The index to select
+	 * @since v1.1.1
+	 */
+	public void selectSong(int i) {
+		// highlightSong
+        ArrayList<StaffSequence> seq = theArrangement.getTheSequences();
+		if(i >= seq.size()) 
+			return;
+        theArrangementList.getSelectionModel().select(i);
+		theArrangementList.scrollTo(i);
+		theSequence = seq.get(i);
+		theSequenceFile = theArrangement.getTheSequenceFiles().get(i);
+		StateMachine.setNoteExtensions(
+                theSequence.getNoteExtensions());
+        controller.getInstBLine().updateNoteExtensions();
+        StateMachine.setTempo(theSequence.getTempo());
+
+		// updateCurrTempo (call it here because we don't want it to runlater)
+		theControls.getCurrTempo().setValue(
+                String.valueOf(StateMachine.getTempo()));
+        
+		// setScrollbar
+        theControls.getScrollbar().setMax(
+                theSequence.getTheLines().size()
+                        - Values.NOTELINES_IN_THE_WINDOW);
+
+        lastLine = findLastLine();
+        
+        setTempo(theSequence.getTempo());
+        
+        StateMachine.setMeasureLineNum(0);
     }
 
+	/**
+	 * @return lastLine The last line with any notes
+	 * @since v1.1.1
+	 */
+	public int getLastLine() {
+		return lastLine;
+    }
 }

@@ -105,7 +105,7 @@ public class VideoOutputter {
 		}
 	}
 	
-	class FFMPEGThread implements Runnable {
+	class FFMPEGRunnable implements Runnable {
 
 		// PngEncoder.INDEXED_COLORS_ORIGINAL seems to look the best
 		// PngEncoder.BEST_SPEED speeds it up by an additional ~1.3x
@@ -128,6 +128,8 @@ public class VideoOutputter {
 		 */
 		@Override
 		public void run() {
+
+			run = true;
 			
 			String framerate = (int) StateMachine.getTempo() + "/60";
 			String outputFile = theStaff.getArrangementName() + "_" + increment + ".mp4";
@@ -147,7 +149,6 @@ public class VideoOutputter {
 			OutputStream ffmpegInput = p.getOutputStream();
 
 			long timeStart = System.currentTimeMillis();
-			run = true;
 			while (run) {
 
 				if (finish && queuedFrames.isEmpty())
@@ -209,8 +210,8 @@ public class VideoOutputter {
 	private List<FrameProcessor> frameProcessors = new ArrayList<>();
 
 	/**
-	 * Save time. Capture B when all playbars are visible, capture A when they
-	 * aren't.
+	 * This will track the visible state of all playbars. The idea is capture B
+	 * when all playbars are visible, capture A when they aren't.
 	 */
 	private boolean visibleState;
 
@@ -222,7 +223,9 @@ public class VideoOutputter {
 
 	private Queue<BufferedImage> queuedFrames = new LinkedList<>();
 	
-	private FFMPEGThread ffmpegThread = new FFMPEGThread();
+	private FFMPEGRunnable ffmpegRunnable = new FFMPEGRunnable();
+	
+	private Thread ffmpegThread;
 	
 	/**
 	 * Pass in staffPlayBars and capture them as they change. it's the only
@@ -242,26 +245,49 @@ public class VideoOutputter {
 	}
 
 	public void processOutput() {
-		runFFMPEGThread();
-		processSong();
-		finishFFMPEGThread();
-	}
-
-	public void processSong() {
-		int lastLine = findLastLine();
-		for (int i = 0; i <= lastLine; i += Values.NOTELINES_IN_THE_WINDOW) {
-			theStaff.setLocation(i);
-			processWindow(Math.min(lastLine - i + 1, Values.NOTELINES_IN_THE_WINDOW));
-		}
+		// TODO: first staging the window (play button pressed, arrangement
+		// mode, first song selected for arrangement and at beginning, scrollbar
+		// focused, volText cleared, filter icons cleared)
+		processArrangement();
 	}
 	
 	/**
-	 * add up to 10 images (1 for each line in the window) to queuedFrames
+	 * Processes frames for all the songs in the arrangement loaded in the
+	 * staff.
+	 */
+	public void processArrangement() {
+		int size = theStaff.getArrangement().getTheSequences().size();
+		for (int i = 0; i < size; i++) {
+			theStaff.selectSong(i);
+			processSong();
+		}
+	}
+
+	/**
+	 * Processes frames for the song loaded in the staff. Tells FFMPEG to
+	 * convert those frames into a video. This function will not return until
+	 * this is completed or the FFMPEGThread is interrupted.
+	 */
+	public void processSong() {
+		runFFMPEGThread();
+		int lastLine = theStaff.getLastLine();
+		int stopLine = (int) (Math.ceil((lastLine + 1) / 4.0) * 4);
+		for (int i = 0; i < stopLine; i += Values.NOTELINES_IN_THE_WINDOW) {
+			theStaff.setLocation(i);
+			int numLines = Math.min(stopLine - i, Values.NOTELINES_IN_THE_WINDOW);
+			processWindow(numLines);
+		}
+		finishFFMPEGThread();
+	}
+
+	/**
+	 * Processes frames for the first numLines in the window adding up to 10
+	 * images (1 for each line in the window) to queuedFrames.
 	 * 
 	 * @param numLines
-	 *            process frames for the first numLines in the window
+	 *            The first number of lines to process frames for
 	 */
-	public void processWindow(int numLines) {
+	private void processWindow(int numLines) {
 		long timeStart = System.currentTimeMillis();
 
 		// 1) Snapshot(A) the scene.
@@ -304,45 +330,61 @@ public class VideoOutputter {
 	}
 
 	/**
-	 * Tell ffmpegThread to start if it hasn't already and un-pause if it is
+	 * Tells FFMPEGThread to start if it hasn't already and un-pause if it is
 	 * paused.
 	 */
 	public synchronized void runFFMPEGThread() {
-		if (!ffmpegThread.run)
-			new Thread(ffmpegThread).start();
+		if (!ffmpegRunnable.run) {
+			ffmpegThread = new Thread(ffmpegRunnable);
+			ffmpegThread.start();
+			ffmpegThread.setPriority(Thread.MAX_PRIORITY);
+		}
 		
-		ffmpegThread.pause = false;
+		ffmpegRunnable.pause = false;
 	}
 	
 	/**
-	 * Tell ffmpegThread to do nothing until pause is set to false.
+	 * Tells FFMPEGThread to do nothing until pause is set to false.
 	 */
 	public synchronized void pauseFFMPEGThread() {
-		if (ffmpegThread.run)
-			ffmpegThread.pause = true;
+		if (ffmpegRunnable.run)
+			ffmpegRunnable.pause = true;
 	}
 	
 	/**
-	 * Tell ffmpegThread to not run for another cycle, effectively ending the
+	 * Tells FFMPEGThread to not run for another cycle, effectively ending the
 	 * thread.
 	 */
 	public synchronized void stopFFMPEGThread() {
-		if (ffmpegThread.run)
-			ffmpegThread.run = false;
+		if (ffmpegRunnable.run)
+			ffmpegRunnable.run = false;
 	}
 	
 	/**
-	 * Tell ffmpegThread to finish processing the rest of the images on
-	 * queuedFrames. It will then stop.
+	 * Tells FFMPEGThread to finish processing the rest of the images on
+	 * queuedFrames. The thread will eventually stop. This function will not
+	 * return until this is completed or the FFMPEGThread is interrupted.
+	 * 
+	 * These FFMPEGThread functions should probably use semaphores in the
+	 * future.
 	 */
 	public synchronized void finishFFMPEGThread() {
-		if (ffmpegThread.run)
-			ffmpegThread.finish = true;
+		if (ffmpegRunnable.run) {
+			ffmpegRunnable.finish = true;
+			
+			try {
+				ffmpegThread.join();
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+			ffmpegThread = null;
+		}
 	}
 	
 	//TODO: 
-	//-create a video.mp4 out of the first song (or until the tempo changes for later songs)
-	//-create video_%d.mp4 for each sequence of songs with the same tempos
+	//-[DONE]create a video.mp4 out of the first song (or until the tempo changes for later songs)
+	//-[DONE]create video_%d.mp4 for each sequence of songs with the same tempos
 	//-concat all video_%d.mp4 to create desired end result
 	public void testFFMPEGyolo() {
 		try {
@@ -390,22 +432,4 @@ public class VideoOutputter {
 
 		return false;
 	}
-
-	/**
-	 * Finds the last line in the sequence that we are playing.
-	 * 
-	 * This is taken from Staff and modified to get the exact last line that is
-	 * played.
-	 */
-	private int findLastLine() {
-		ArrayList<StaffNoteLine> lines = theStaff.getSequence().getTheLines();
-		for (int i = lines.size() - 1; i >= 0; i--)
-			if (!lines.get(i).isEmpty()) {
-				// the 0 case
-				if(i == 0)
-					return 3;
-				return (int) (Math.ceil(i / 4.0) * 4) - 1;
-			}
-		return -1;
-    }
 }
