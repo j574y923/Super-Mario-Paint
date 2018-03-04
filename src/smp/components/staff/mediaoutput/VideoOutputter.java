@@ -129,6 +129,7 @@ public class VideoOutputter {
 		@Override
 		public void run() {
 
+			// TODO: THIS IS A RACE CONDITION, PLEASE USE SEMAPHORE
 			run = true;
 			
 			String framerate = (int) StateMachine.getTempo() + "/60";

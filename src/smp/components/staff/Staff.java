@@ -277,7 +277,7 @@ public class Staff {
     /**
      * Finds the last line in the sequence that we are playing.
      */
-    private int findLastLine() {
+    public int findLastLine() {
         ArrayList<StaffNoteLine> lines = theSequence.getTheLines();
         for (int i = lines.size() - 1; i >= 0; i--)
             if (!lines.get(i).isEmpty()) {

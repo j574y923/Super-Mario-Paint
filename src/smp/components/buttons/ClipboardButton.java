@@ -1,5 +1,9 @@
 package smp.components.buttons;
 
+import java.io.IOException;
+
+import javax.sound.midi.InvalidMidiDataException;
+
 import javafx.event.EventHandler;
 import javafx.scene.control.Tooltip;
 import javafx.scene.image.ImageView;
@@ -9,6 +13,7 @@ import javafx.scene.input.MouseEvent;
 import smp.ImageIndex;
 import smp.ImageLoader;
 import smp.components.general.ImageToggleButton;
+import smp.components.staff.mediaoutput.AudioOutputter;
 import smp.components.staff.mediaoutput.VideoOutputter;
 import smp.fx.SMPFXController;
 import smp.stateMachine.StateMachine;
@@ -62,12 +67,19 @@ public class ClipboardButton extends ImageToggleButton {
     @Override
     public void reactPressed(MouseEvent e) {
     	
-//    	AudioOutputter test = new AudioOutputter();
-    	VideoOutputter test = new VideoOutputter(controller.getStaff(), controller.getStaffPlayBars());//.getScene());//.getChildren().get(0));//
+    	AudioOutputter test = new AudioOutputter(controller.getStaff());
+    	try {
+			test.processSong();
+			test.finish();
+		} catch (InvalidMidiDataException | IOException e1) {
+			e1.printStackTrace();
+		}
+    	
+//    	VideoOutputter test = new VideoOutputter(controller.getStaff(), controller.getStaffPlayBars());//.getScene());//.getChildren().get(0));//
     	
 //		for (int i = 0; i < 100; i++) {
 //			System.out.print(i + " ");
-			test.processOutput();
+//			test.processOutput();
 //			test.testFFMPEGyolo();
 //		}
     	
