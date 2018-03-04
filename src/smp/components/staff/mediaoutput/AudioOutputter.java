@@ -38,7 +38,10 @@ public class AudioOutputter {
 	/** The instruments and their keys that are playing. */
 	private ArrayList<ArrayList<Integer>> notesOn = new ArrayList<>();
 
-	/** The instruments playing at the current timePosition. Tells us to not stop the notes. */
+	/**
+	 * The instruments playing at the current timePosition. Tells us to not stop
+	 * the instrument's notes.
+	 */
 	private boolean[] instrumentsOnNow = new boolean[InstrumentIndex.values().length];
 
 	/**
@@ -264,12 +267,12 @@ public class AudioOutputter {
 	 */
 	public void playNote(int instrument, int key, int volume) throws InvalidMidiDataException {
 		boolean noteExtended = StateMachine.getNoteExtensions()[instrument];
-//		if(!noteExtended && !instrumentsOnNow[instrument])
-//			stopInstrument(instrument);
+		if(!noteExtended && !instrumentsOnNow[instrument])
+			stopInstrument(instrument);
 		
-		msg.setMessage(ShortMessage.PROGRAM_CHANGE, 0, instrument, 0);
+		msg.setMessage(ShortMessage.PROGRAM_CHANGE, instrument % 16, instrument, 0);
 		recv.send(msg, timePosition);
-		msg.setMessage(ShortMessage.NOTE_ON, 0, key, volume);
+		msg.setMessage(ShortMessage.NOTE_ON, instrument % 16, key, volume);
 		recv.send(msg, timePosition);
 		
 		notesOn.get(instrument).add(key);
@@ -290,9 +293,9 @@ public class AudioOutputter {
 		ArrayList<Integer> instrumentKeysOn = notesOn.get(instrument);
 		for(int i = 0; i < instrumentKeysOn.size(); i++) {
 			 if(instrumentKeysOn.get(i) == key) {
-				 msg.setMessage(ShortMessage.PROGRAM_CHANGE, 0, instrument, 0);
+				 msg.setMessage(ShortMessage.PROGRAM_CHANGE, instrument % 16, instrument, 0);
 				 recv.send(msg, timePosition);
-				 msg.setMessage(ShortMessage.NOTE_OFF, 0, key, 0);
+				 msg.setMessage(ShortMessage.NOTE_OFF, instrument % 16, key, 0);
 				 recv.send(msg, timePosition);
 				 
 				 instrumentKeysOn.remove(i);
