@@ -137,7 +137,7 @@ public class VideoOutputter {
 			
 			File ffmpegOutputMsg = new File(theStaff.getArrangementName() + "_" + increment + "_err.txt");
 			ProcessBuilder pb = new ProcessBuilder("ffmpeg", "-framerate", framerate, "-i",
-					"pipe:0", "-r", "60", outputFile);
+					"pipe:0", "-preset", "ultrafast", "-r", "60", outputFile);
 			pb.redirectErrorStream(true);
 			pb.redirectOutput(ffmpegOutputMsg);
 			pb.redirectInput(ProcessBuilder.Redirect.PIPE);
@@ -271,7 +271,7 @@ public class VideoOutputter {
 	 */
 	public void processSong() {
 		runFFMPEGThread();
-		int lastLine = theStaff.getLastLine();
+		int lastLine = theStaff.findLastLine();//theStaff.getLastLine();
 		int stopLine = (int) (Math.ceil((lastLine + 1) / 4.0) * 4);
 		for (int i = 0; i < stopLine; i += Values.NOTELINES_IN_THE_WINDOW) {
 			theStaff.setLocation(i);

@@ -913,12 +913,4 @@ public class Staff {
         
         StateMachine.setMeasureLineNum(0);
     }
-
-	/**
-	 * @return lastLine The last line with any notes
-	 * @since v1.1.1
-	 */
-	public int getLastLine() {
-		return lastLine;
-    }
 }

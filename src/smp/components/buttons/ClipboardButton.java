@@ -3,6 +3,7 @@ package smp.components.buttons;
 import java.io.IOException;
 
 import javax.sound.midi.InvalidMidiDataException;
+import javax.sound.midi.MidiUnavailableException;
 
 import javafx.event.EventHandler;
 import javafx.scene.control.Tooltip;
@@ -67,11 +68,12 @@ public class ClipboardButton extends ImageToggleButton {
     @Override
     public void reactPressed(MouseEvent e) {
     	
-    	AudioOutputter test = new AudioOutputter(controller.getStaff());
     	try {
-			test.processSong();
-			test.finish();
-		} catch (InvalidMidiDataException | IOException e1) {
+        	AudioOutputter test = new AudioOutputter(controller.getStaff());
+			test.processSong();//.processArrangement();//.processSong();
+			test.finishSong();//.finishArr();
+			
+		} catch (InvalidMidiDataException | IOException | MidiUnavailableException e1) {
 			e1.printStackTrace();
 		}
     	
@@ -80,6 +82,7 @@ public class ClipboardButton extends ImageToggleButton {
 //		for (int i = 0; i < 100; i++) {
 //			System.out.print(i + " ");
 //			test.processOutput();
+//    	test.processSong();
 //			test.testFFMPEGyolo();
 //		}
     	

@@ -22,19 +22,23 @@ import com.sun.media.sound.AudioSynthesizer;
 
 import smp.components.InstrumentIndex;
 import smp.components.Values;
+import smp.components.general.Utilities;
 import smp.components.staff.Staff;
 import smp.components.staff.sequences.StaffNote;
 import smp.components.staff.sequences.StaffNoteLine;
+import smp.components.staff.sequences.StaffSequence;
 import smp.stateMachine.StateMachine;
 
 /**
+ * Inspired by (all credit goes here...)
+ * https://sourceforge.net/p/rasmusdsp/discussion/602492/thread/87f58786/ 
  * 
  * @since v1.1.1
  * @author J
  *
  */
 public class AudioOutputter {
-
+	
 	/** The instruments and their keys that are playing. */
 	private ArrayList<ArrayList<Integer>> notesOn = new ArrayList<>();
 
@@ -69,54 +73,121 @@ public class AudioOutputter {
 	private ShortMessage msg;
 	private Receiver recv;
 
-	public AudioOutputter(Staff staff) {
+	public AudioOutputter(Staff staff) throws MidiUnavailableException, InvalidMidiDataException, IOException {
 
 		theStaff = staff;
 
-		for(int i = 0; i < Values.NUMINSTRUMENTS; i++)
+		for (int i = 0; i < Values.NUMINSTRUMENTS; i++)
 			notesOn.add(new ArrayList<Integer>());
-		
-		try {
-			System.out.println(" * getting synthesizer... ");
-			audioFormat = new AudioFormat(44100, 16, 2, true, false);
-			audioSynthesizer = (AudioSynthesizer) MidiSystem.getSynthesizer();
 
-			System.out.println(" * opening stream... ");
-			infoMap = new HashMap<String, Object>();
-			infoMap.put("resampletType", "sinc");
-			infoMap.put("maxPolyphony", "1024");
-			audioInputStream = audioSynthesizer.openStream(audioFormat, infoMap);
+		System.out.println(" * getting synthesizer... ");
+		audioFormat = new AudioFormat(44100, 16, 2, true, false);
+		audioSynthesizer = (AudioSynthesizer) MidiSystem.getSynthesizer();
 
-			System.out.println(" * getting SoundBank");
-			soundbankFile = new File("soundset3.sf2");
-			soundbank = MidiSystem.getSoundbank(soundbankFile);
+		System.out.println(" * opening stream... ");
+		infoMap = new HashMap<String, Object>();
+		infoMap.put("resampletType", "sinc");
+		infoMap.put("maxPolyphony", "1024");
+		audioInputStream = audioSynthesizer.openStream(audioFormat, infoMap);
 
-			System.out.println(" * loading SoundBank");
-			audioSynthesizer.loadAllInstruments(soundbank);
+		System.out.println(" * getting SoundBank");
+		soundbankFile = new File("soundset3.sf2");
+		soundbank = MidiSystem.getSoundbank(soundbankFile);
 
-			System.out.println(" * initializing instruments");
-			midiChannels = audioSynthesizer.getChannels();
+		System.out.println(" * loading SoundBank");
+		audioSynthesizer.loadAllInstruments(soundbank);
 
-			// somehow this gets the synth to start rolling?!.. bug?!
-			for (MidiChannel mch : midiChannels) {
-				mch.programChange(0); // set instrument (0 = piano by default)
-				mch.controlChange(Values.REVERB, 0); // MARIO PAINT SPECIFIC
-			}
+		System.out.println(" * initializing instruments");
+		midiChannels = audioSynthesizer.getChannels();
 
-			System.out.println(" * sending short MIDI messages... ");
-			msg = new ShortMessage();
-			recv = audioSynthesizer.getReceiver();
-			
-		} catch (IOException | MidiUnavailableException | InvalidMidiDataException e) {
-			e.printStackTrace();
+		// somehow this gets the synth to start rolling?!.. bug?!
+		for (MidiChannel mch : midiChannels) {
+			mch.programChange(0); // set instrument (0 = piano by default)
+			mch.controlChange(Values.REVERB, 0); // MARIO PAINT SPECIFIC
 		}
+
+		System.out.println(" * sending short MIDI messages... ");
+		msg = new ShortMessage();
+		recv = audioSynthesizer.getReceiver();
+
 	}
 
 	// TODO:
 	public void processArrangement() throws InvalidMidiDataException {
+		ArrayList<File> files = theStaff.getArrangement().getTheSequenceFiles();
+        for (File f : files) {
+            try {
+            	StaffSequence seq = Utilities.loadSong(f);
+            	processSongInArr(seq);
+            } catch (NullPointerException |IOException e) {
+                e.printStackTrace();
+            }
+        }
+	}
+
+	/**
+	 * Processes every line's notes in the song. Normally used when outputting
+	 * arrangement.
+	 * 
+	 * @param seq
+	 *            The <code>StaffSequence</code> that has been parsed from the
+	 *            song file
+	 * @throws InvalidMidiDataException
+	 */
+	public void processSongInArr(StaffSequence seq) throws InvalidMidiDataException {
+		// 60000000 is one minute
+		// the formula is microseconds/bpm = microseconds per beat
+		timeIncrementExact = 60000000 / seq.getTempo();
 		
+		ArrayList<StaffNoteLine> theLines = seq.getTheLines();
+		int lastLine = 0;
+		for(int i = theLines.size() - 1; i >= 0; i--)
+			if (!theLines.get(i).isEmpty()) {
+				lastLine = i;
+				break;
+			}
+		
+		int stopLine = (int) (Math.ceil((lastLine + 1) / 4.0) * 4);
+		for (int i = 0; i < stopLine; i++) {
+			processLineInArr(theLines.get(i));
+			seekNext();
+		}
+	}
+
+	/**
+	 * Passes all notes on the specified line to the audioInputStream. Normally
+	 * used when outputting <code>StaffArrangement</code>.
+	 * 
+	 * @param line
+	 *            The line passed in from a <code>StaffSequence</code>
+	 * @throws InvalidMidiDataException
+	 */
+	private void processLineInArr(StaffNoteLine line) throws InvalidMidiDataException {
+		for (StaffNote n : line.getNotes()) {
+			
+			int instrument = n.getInstrument().ordinal();
+			int key = Values.staffNotes[n.getPosition()].getKeyNum() + n.getAccidental();
+			
+			switch (n.muteNoteVal()) {
+			case 2:
+				stopInstrument(instrument);
+				break;
+			case 1:
+				stopNote(instrument, key);
+				break;
+			case 0:
+				playNote(instrument, key, line.getVolume());
+				break;
+			}
+		}
 	}
 	
+	/**
+	 * Processes every line's notes in the <code>Staff</code>. Normally used
+	 * when outputting the song displayed in the <code>Staff</code>.
+	 * 
+	 * @throws InvalidMidiDataException
+	 */
 	public void processSong() throws InvalidMidiDataException {
 		// 60000000 is one minute
 		// the formula is microseconds/bpm = microseconds per beat
@@ -130,7 +201,9 @@ public class AudioOutputter {
 	}
 
 	/**
-	 * Passes all notes on the specified line to the audioInputStream.
+	 * Passes all notes on the specified <code>StaffNoteLine</code> index to the
+	 * audioInputStream. Normally used when outputting the song displayed in the
+	 * <code>Staff</code>.
 	 * 
 	 * @param i
 	 *            The index of the line
@@ -158,102 +231,6 @@ public class AudioOutputter {
 	}
 
 	/**
-	 * https://sourceforge.net/p/rasmusdsp/discussion/602492/thread/87f58786/
-	 * 
-	 * @throws IOException
-	 * @throws MidiUnavailableException
-	 * @throws InvalidMidiDataException
-	 * @throws InterruptedException
-	 */
-	public void test() throws IOException, MidiUnavailableException, InvalidMidiDataException, InterruptedException {
-		System.out.println(" * getting synthesizer... ");
-		AudioFormat format = new AudioFormat(44100, 16, 2, true, false);
-		AudioSynthesizer synthesizer = (AudioSynthesizer) MidiSystem.getSynthesizer();
-
-		System.out.println(" * opening stream... ");
-		Map<String, Object> infoMap = new HashMap<String, Object>();
-		infoMap.put("resampletType", "sinc");
-		infoMap.put("maxPolyphony", "1024");
-		AudioInputStream stream = synthesizer.openStream(format, infoMap);
-
-		System.out.println(" * getting SoundBank");
-		File soundbankFile = new File("soundset3.sf2");
-		Soundbank soundbank = MidiSystem.getSoundbank(soundbankFile);
-
-		System.out.println(" * loading SoundBank");
-		synthesizer.loadAllInstruments(soundbank);
-
-		System.out.println(" * initializing instruments");
-		MidiChannel[] mChans = synthesizer.getChannels();
-
-		// somehow this gets the synth to start rolling?!.. bug?!
-		for (MidiChannel mch : mChans) {
-			mch.programChange(0); // set instrument (0 = piano by default)
-			mch.controlChange(Values.REVERB, 0);// MARIO PAINT SPECIFIC
-		}
-
-		System.out.println(" * sending short MIDI messages... ");
-		ShortMessage msg = new ShortMessage();
-		Receiver recv = synthesizer.getReceiver();
-		msg.setMessage(ShortMessage.PROGRAM_CHANGE, 0, 13, 0);
-		recv.send(msg, 0);
-		msg.setMessage(ShortMessage.NOTE_ON, 0, 60, 64);
-		recv.send(msg, 0);
-		msg.setMessage(ShortMessage.NOTE_ON, 1, 64, 64);
-		recv.send(msg, 0);
-		msg.setMessage(ShortMessage.PROGRAM_CHANGE, 0, 02, 0);
-		recv.send(msg, 0);
-		msg.setMessage(ShortMessage.NOTE_ON, 0, 40, 64);
-		recv.send(msg, 0);
-		// msg.setMessage(ShortMessage.PROGRAM_CHANGE, 0, 13, 0);
-		// recv.send(msg, 0);
-		msg.setMessage(ShortMessage.NOTE_ON, 0, 72, 64);
-		recv.send(msg, 0);
-		msg.setMessage(ShortMessage.NOTE_OFF, 0, 40, 64);
-		recv.send(msg, 250000);
-		msg.setMessage(ShortMessage.NOTE_OFF, 0, 50, 64);
-		recv.send(msg, 500000);
-		msg.setMessage(ShortMessage.NOTE_ON, 0, 50, 64);
-		recv.send(msg, 500000);
-		msg.setMessage(ShortMessage.NOTE_OFF, 0, 50, 64);
-		recv.send(msg, 750000);
-		msg.setMessage(ShortMessage.NOTE_ON, 0, 50, 64);
-		recv.send(msg, 750000);
-		msg.setMessage(ShortMessage.NOTE_OFF, 0, 50, 64);
-		recv.send(msg, 1000000);
-		msg.setMessage(ShortMessage.NOTE_ON, 0, 50, 64);
-		recv.send(msg, 1000000);
-		msg.setMessage(ShortMessage.NOTE_OFF, 0, 50, 64);
-		recv.send(msg, 1250000);
-		msg.setMessage(ShortMessage.NOTE_ON, 0, 72, 64);
-		recv.send(msg, 1250000);
-		msg.setMessage(ShortMessage.NOTE_OFF, 0, 72, 0);
-		recv.send(msg, 3000000);
-		msg.setMessage(ShortMessage.NOTE_ON, 0, 72, 64);
-		recv.send(msg, 5000000);
-
-		System.out.println(" * stream has bytes available: " + stream.available());
-		byte[] b = new byte[stream.available()];
-		stream.read(b);
-		// Thread.sleep(500);
-		System.out.println(" * stream has bytes available: " + stream.available());
-		b = new byte[stream.available()];
-		stream.read(b);
-		// Thread.sleep(500);
-		System.out.println(" * stream has bytes available: " + stream.available());
-
-		System.out.println(" * calc length for save to file... ");
-		long len = (long) (format.getFrameRate() * 10);
-
-		System.out.println(" * writing to file... ");
-		stream = new AudioInputStream(stream, format, len);
-		AudioSystem.write(stream, AudioFileFormat.Type.WAVE, new File("output.wav"));
-
-		System.out.println(" * done with MIDI!");
-		System.exit(0);
-	}
-
-	/**
 	 * Plays note with specified instrument, key, and volume. Stops all other
 	 * notes with the same instrument if instrument is not on in noteExtensions.
 	 * 
@@ -270,6 +247,9 @@ public class AudioOutputter {
 		if(!noteExtended && !instrumentsOnNow[instrument])
 			stopInstrument(instrument);
 		
+		// TODO: sort out two instruments on one channel at the same position (e.g. mushroom & shyguy)
+		// (it's probably not tracks) look into "tracks" https://sound.stackexchange.com/questions/24231/difference-between-channel-and-track-in-midi-filesc
+		// maybe use SMPSynthesizer instead of audioSynthesizer because SMP has 19 channels???
 		msg.setMessage(ShortMessage.PROGRAM_CHANGE, instrument % 16, instrument, 0);
 		recv.send(msg, timePosition);
 		msg.setMessage(ShortMessage.NOTE_ON, instrument % 16, key, volume);
@@ -330,14 +310,14 @@ public class AudioOutputter {
 			instrumentsOnNow[i] = false;
 	}
 
-	public void finish() throws IOException {
+	public void finishSong() throws IOException {
 		System.out.println(" * stream has bytes available: " + audioInputStream.available());
 		byte[] b = new byte[audioInputStream.available()];
 		audioInputStream.read(b);
 
 		System.out.println(" * calc length for save to file... ");
 		double lengthExactPlusOne = timePositionExact / 1000000 + 1;
-		System.out.println(lengthExactPlusOne);
+		System.out.println(" * total time in s: " + lengthExactPlusOne + "...");
 		long lengthFrames = (long) (audioFormat.getFrameRate() * lengthExactPlusOne);//lengthSeconds);
 
 		System.out.println(" * writing to " + theStaff.getSequenceName() + ".wav... ");
@@ -345,5 +325,24 @@ public class AudioOutputter {
 		AudioSystem.write(audioInputStream, AudioFileFormat.Type.WAVE, new File(theStaff.getSequenceName() + ".wav"));
 
 		System.out.println(" * done with MIDI!");
+		audioInputStream.close();
+	}
+	
+	public void finishArr() throws IOException {
+		System.out.println(" * stream has bytes available: " + audioInputStream.available());
+		byte[] b = new byte[audioInputStream.available()];
+		audioInputStream.read(b);
+
+		System.out.println(" * calc length for save to file... ");
+		double lengthExactPlusOne = timePositionExact / 1000000 + 1;
+		System.out.println(" * total time in s: " + lengthExactPlusOne + "...");
+		long lengthFrames = (long) (audioFormat.getFrameRate() * lengthExactPlusOne);//lengthSeconds);
+
+		System.out.println(" * writing to " + theStaff.getArrangementName() + ".wav... ");
+		audioInputStream = new AudioInputStream(audioInputStream, audioFormat, lengthFrames);
+		AudioSystem.write(audioInputStream, AudioFileFormat.Type.WAVE, new File(theStaff.getArrangementName() + ".wav"));
+
+		System.out.println(" * done with MIDI!");
+		audioInputStream.close();
 	}
 }
