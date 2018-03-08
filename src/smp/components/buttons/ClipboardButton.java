@@ -15,6 +15,7 @@ import smp.ImageIndex;
 import smp.ImageLoader;
 import smp.components.general.ImageToggleButton;
 import smp.components.staff.mediaoutput.AudioOutputter;
+import smp.components.staff.mediaoutput.AudioOutputterA;
 import smp.components.staff.mediaoutput.VideoOutputter;
 import smp.fx.SMPFXController;
 import smp.stateMachine.StateMachine;
@@ -69,9 +70,11 @@ public class ClipboardButton extends ImageToggleButton {
     public void reactPressed(MouseEvent e) {
     	
     	try {
-        	AudioOutputter test = new AudioOutputter(controller.getStaff());
-			test.processSong();//.processArrangement();//.processSong();
-			test.finishSong();//.finishArr();
+//        	AudioByteArrayOutputter test = new AudioByteArrayOutputter(controller.getStaff(), 0);
+//			test.processSong();//.processArrangement();//.processSong();
+//			test.finishSong();//.finishArr();
+    		AudioOutputterA test = new AudioOutputterA(controller.getStaff());
+    		test.outputSong();
 			
 		} catch (InvalidMidiDataException | IOException | MidiUnavailableException e1) {
 			e1.printStackTrace();

@@ -1,5 +1,6 @@
 package smp.components.staff.mediaoutput;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,6 +40,9 @@ import smp.stateMachine.StateMachine;
  */
 public class AudioOutputter {
 	
+	/** The number of seconds to wait after playing the last line with notes. */
+	public static final int AUDIO_PADDING_END = 3;
+	
 	/** The instruments and their keys that are playing. */
 	private ArrayList<ArrayList<Integer>> notesOn = new ArrayList<>();
 
@@ -73,9 +77,19 @@ public class AudioOutputter {
 	private ShortMessage msg;
 	private Receiver recv;
 
-	public AudioOutputter(Staff staff) throws MidiUnavailableException, InvalidMidiDataException, IOException {
+	/**
+	 * The nth pass through of the song where each pass plays up to 16
+	 * instruments. This way we get to play all 19 instruments.
+	 * 
+	 * 0 = first 16, 1 = next 16, etc...
+	 */
+	private int pass;
+
+	public AudioOutputter(Staff staff, int pass)
+			throws MidiUnavailableException, InvalidMidiDataException, IOException {
 
 		theStaff = staff;
+		this.pass = pass;
 
 		for (int i = 0; i < Values.NUMINSTRUMENTS; i++)
 			notesOn.add(new ArrayList<Integer>());
@@ -109,7 +123,6 @@ public class AudioOutputter {
 		System.out.println(" * sending short MIDI messages... ");
 		msg = new ShortMessage();
 		recv = audioSynthesizer.getReceiver();
-
 	}
 
 	// TODO:
@@ -168,6 +181,9 @@ public class AudioOutputter {
 			int instrument = n.getInstrument().ordinal();
 			int key = Values.staffNotes[n.getPosition()].getKeyNum() + n.getAccidental();
 			
+			if(pass != instrument / 16)
+				continue;
+			
 			switch (n.muteNoteVal()) {
 			case 2:
 				stopInstrument(instrument);
@@ -215,6 +231,9 @@ public class AudioOutputter {
 			
 			int instrument = n.getInstrument().ordinal();
 			int key = Values.staffNotes[n.getPosition()].getKeyNum() + n.getAccidental();
+
+			if(pass != instrument / 16)
+				continue;
 			
 			switch (n.muteNoteVal()) {
 			case 2:
@@ -310,39 +329,57 @@ public class AudioOutputter {
 			instrumentsOnNow[i] = false;
 	}
 
-	public void finishSong() throws IOException {
+	public byte[] finishSong() throws IOException {
 		System.out.println(" * stream has bytes available: " + audioInputStream.available());
 		byte[] b = new byte[audioInputStream.available()];
 		audioInputStream.read(b);
 
 		System.out.println(" * calc length for save to file... ");
-		double lengthExactPlusOne = timePositionExact / 1000000 + 1;
-		System.out.println(" * total time in s: " + lengthExactPlusOne + "...");
-		long lengthFrames = (long) (audioFormat.getFrameRate() * lengthExactPlusOne);//lengthSeconds);
+		double lengthExactPlusPadding = timePositionExact / 1000000 + 1;
+		System.out.println(" * total time in s: " + lengthExactPlusPadding + "...");
+		long lengthFrames = (long) (audioFormat.getFrameRate() * lengthExactPlusPadding);
 
 		System.out.println(" * writing to " + theStaff.getSequenceName() + ".wav... ");
 		audioInputStream = new AudioInputStream(audioInputStream, audioFormat, lengthFrames);
-		AudioSystem.write(audioInputStream, AudioFileFormat.Type.WAVE, new File(theStaff.getSequenceName() + ".wav"));
+		ByteArrayOutputStream baos = new ByteArrayOutputStream();
+		AudioSystem.write(audioInputStream, AudioFileFormat.Type.WAVE, baos);//new File(theStaff.getSequenceName() + ".wav"));
 
 		System.out.println(" * done with MIDI!");
+		audioSynthesizer.close();
 		audioInputStream.close();
+		recv.close();
+		
+		return baos.toByteArray();
 	}
 	
-	public void finishArr() throws IOException {
+	public byte[] finishArr() throws IOException {
 		System.out.println(" * stream has bytes available: " + audioInputStream.available());
 		byte[] b = new byte[audioInputStream.available()];
 		audioInputStream.read(b);
 
 		System.out.println(" * calc length for save to file... ");
-		double lengthExactPlusOne = timePositionExact / 1000000 + 1;
-		System.out.println(" * total time in s: " + lengthExactPlusOne + "...");
-		long lengthFrames = (long) (audioFormat.getFrameRate() * lengthExactPlusOne);//lengthSeconds);
+		double lengthExactPlusPadding = timePositionExact / 1000000 + AUDIO_PADDING_END;
+		System.out.println(" * total time in s: " + lengthExactPlusPadding + "...");
+		long lengthFrames = (long) (audioFormat.getFrameRate() * lengthExactPlusPadding);
 
 		System.out.println(" * writing to " + theStaff.getArrangementName() + ".wav... ");
 		audioInputStream = new AudioInputStream(audioInputStream, audioFormat, lengthFrames);
-		AudioSystem.write(audioInputStream, AudioFileFormat.Type.WAVE, new File(theStaff.getArrangementName() + ".wav"));
+		ByteArrayOutputStream baos = new ByteArrayOutputStream();
+		AudioSystem.write(audioInputStream, AudioFileFormat.Type.WAVE, baos);//new File(theStaff.getArrangementName() + ".wav"));
 
 		System.out.println(" * done with MIDI!");
+		audioSynthesizer.close();
 		audioInputStream.close();
+		recv.close();
+		
+		return baos.toByteArray();
+	}
+	
+	public double getTimePositionExact() {
+		return timePositionExact;
+	}
+	
+	public AudioFormat getAudioFormat() {
+		return audioFormat;
 	}
 }
