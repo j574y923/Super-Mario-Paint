@@ -74,7 +74,7 @@ public class ClipboardButton extends ImageToggleButton {
 //			test.processSong();//.processArrangement();//.processSong();
 //			test.finishSong();//.finishArr();
     		AudioOutputterA test = new AudioOutputterA(controller.getStaff());
-    		test.outputSong();
+    		test.outputArr();//.outputSong();
 			
 		} catch (InvalidMidiDataException | IOException | MidiUnavailableException e1) {
 			e1.printStackTrace();
