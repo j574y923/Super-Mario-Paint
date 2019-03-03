@@ -1,6 +1,9 @@
 package smp.presenters.buttons.PlayPresenter;
 
+import javafx.application.Platform;
+import javafx.beans.property.DoubleProperty;
 import javafx.concurrent.Task;
+import smp.models.stateMachine.StateMachine;
 
 /**
  * This class keeps track of animation and sound. Note to self: While
@@ -8,6 +11,8 @@ import javafx.concurrent.Task;
  * Therefore, debug like crazy!
  */
 class AnimationTask extends Task<Void> {
+
+	private DoubleProperty measureLineNum;
 
     /**
      * This is the current index of the measure line that we are on on
@@ -20,9 +25,13 @@ class AnimationTask extends Task<Void> {
      */
     protected boolean advance = false;
 
-    /** These are the play bars on the staff. */
-    protected ArrayList<ImageView> playBars;
-
+    /** Number of lines queued up to play. */
+    protected volatile int queue = 0;
+    
+    public AnimationTask() {
+    	this.measureLineNum = StateMachine.getMeasureLineNum();
+    }
+    
     /**
      * Zeros the staff to the beginning point. Use only at the beginning
      * of a new song file.
@@ -30,16 +39,11 @@ class AnimationTask extends Task<Void> {
     protected void zeroEverything() {
         Platform.runLater(new Runnable() {
 
-            @Override
+			@Override
             public void run() {
-                setLocation(0);
-                currVal.setValue(0);
-                playBars.get(0).setVisible(true);
-                for (int i = 1; i < playBars.size(); i++)
-                    playBars.get(i).setVisible(false);
+                measureLineNum.set(0);
                 queue--;
             }
-
         });
     }
 
