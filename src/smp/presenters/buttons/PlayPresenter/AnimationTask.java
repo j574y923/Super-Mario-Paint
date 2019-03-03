@@ -50,10 +50,10 @@ class AnimationTask extends Task<Void> {
     private int delayNanos;
 
     /** Whether we are playing a song. */
-    private boolean songPlaying = false;
+    protected boolean songPlaying = false;
     
     /** This is the last line of notes in the song. */
-    private int lastLine;
+    protected int lastLine;
     
     public AnimationTask() {
     	this.theSequence = Variables.theSequence;
@@ -171,7 +171,7 @@ class AnimationTask extends Task<Void> {
     /**
      * Finds the last line in the sequence that we are playing.
      */
-    private int findLastLine() {
+    protected int findLastLine() {
         ObservableList<StaffNoteLine> lines = theSequence.get().getTheLines();
         for (int i = lines.size() - 1; i >= 0; i--)
             if (!lines.get(i).isEmpty()) {

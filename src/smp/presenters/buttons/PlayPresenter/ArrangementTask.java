@@ -1,21 +1,36 @@
 package smp.presenters.buttons.PlayPresenter;
 
+import java.io.File;
+
+import javafx.application.Platform;
+import javafx.beans.property.ObjectProperty;
+import javafx.collections.ObservableList;
+import smp.models.staff.StaffArrangement;
+import smp.models.staff.StaffSequence;
+import smp.models.stateMachine.Variables;
+
 /**
  * This class runs an arrangement instead of just a song.
  */
 class ArrangementTask extends AnimationTask {
 
+	private ObjectProperty<StaffArrangement> theArrangement;
+
+	public ArrangementTask() {
+		super();
+		this.theArrangement = Variables.theArrangement;
+	}
+	
     @Override
-    protected Staff call() throws Exception {
-        highlightsOff();
-        ArrayList<StaffSequence> seq = theArrangement.getTheSequences();
-        ArrayList<File> files = theArrangement.getTheSequenceFiles();
+    protected Void call() throws Exception {
+        ObservableList<StaffSequence> seq = theArrangement.get().getTheSequences();
+        ObservableList<File> files = theArrangement.get().getTheSequenceFiles();
         for (int i = 0; i < seq.size(); i++) {
             while (queue > 0)
                 ;
             /* Force emptying of queue before changing songs. */
             queue++;
-            setSoundset(seq.get(i).getSoundset());
+            setSoundset(seq.get(i).getSoundset().get());
             index = 0;
             advance = false;
             queue++;
@@ -26,10 +41,6 @@ class ArrangementTask extends AnimationTask {
                     theSequence.getNoteExtensions());
             controller.getInstBLine().updateNoteExtensions();
             StateMachine.setTempo(theSequence.getTempo());
-            queue++;
-            updateCurrTempo();
-            queue++;
-            setScrollbar();
             lastLine = findLastLine();
             songPlaying = true;
             setTempo(theSequence.getTempo());
@@ -59,7 +70,7 @@ class ArrangementTask extends AnimationTask {
         }
         highlightsOff();
         hitStop();
-        return theMatrix.getStaff();
+        return null;
     }
     
     
@@ -84,7 +95,7 @@ class ArrangementTask extends AnimationTask {
 //					}
 //					controller.getSoundfontLoader().storeInCache();
 //				}
-//				queue--;
+				queue--;
 //			}
 //		});
 	}
@@ -105,31 +116,6 @@ class ArrangementTask extends AnimationTask {
                 queue--;
             }
 
-        });
-    }
-
-    /** Sets the scrollbar max/min to the proper values. */
-    private void setScrollbar() {
-        Platform.runLater(new Runnable() {
-            @Override
-            public void run() {
-                theControls.getScrollbar().setMax(
-                        theSequence.getTheLines().size()
-                                - Values.NOTELINES_IN_THE_WINDOW);
-                queue--;
-            }
-        });
-    }
-
-    /** Updates the current tempo - arranger version. */
-    private void updateCurrTempo() {
-        Platform.runLater(new Runnable() {
-            @Override
-            public void run() {
-                theControls.getCurrTempo().setValue(
-                        String.valueOf(StateMachine.getTempo()));
-                queue--;
-            }
         });
     }
 }
