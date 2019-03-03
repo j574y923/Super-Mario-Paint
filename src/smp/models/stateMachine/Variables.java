@@ -87,4 +87,6 @@ public class Variables {
 	public static BooleanProperty accSilhouetteVisible = new SimpleBooleanProperty(true);
 	public static IntegerProperty selectedLine = new SimpleIntegerProperty(-1);
 	public static IntegerProperty selectedPosition = new SimpleIntegerProperty(-1);
+	
+	public static IntegerProperty playIndex = new SimpleIntegerProperty(-1);
 }

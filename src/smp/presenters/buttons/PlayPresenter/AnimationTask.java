@@ -2,6 +2,7 @@ package smp.presenters.buttons.PlayPresenter;
 
 import javafx.application.Platform;
 import javafx.beans.property.DoubleProperty;
+import javafx.beans.property.IntegerProperty;
 import javafx.beans.property.ObjectProperty;
 import javafx.concurrent.Task;
 import smp.components.Values;
@@ -16,8 +17,11 @@ import smp.models.stateMachine.Variables;
  */
 class AnimationTask extends Task<Void> {
 
+	// TODO: auto-add these model comments
+	// ====Models====
 	private DoubleProperty measureLineNum;
 	private ObjectProperty<StaffSequence> theSequence;
+	private IntegerProperty playIndex;
 
     /**
      * This is the current index of the measure line that we are on on
@@ -36,6 +40,7 @@ class AnimationTask extends Task<Void> {
     public AnimationTask() {
     	this.theSequence = Variables.theSequence;
     	this.measureLineNum = StateMachine.getMeasureLineNum();
+    	this.playIndex = Variables.playIndex;
     }
     
     /**
@@ -104,6 +109,7 @@ class AnimationTask extends Task<Void> {
         } else {
             index = advance ? 0 : (index + 1);
         }
+        playIndex.set(index);
     }
 
     /**
@@ -121,12 +127,9 @@ class AnimationTask extends Task<Void> {
 
             @Override
             public void run() {
-                bumpHighlights(playBars, index);
                 if (advance) {
-                    int loc = (int) currVal.getValue().doubleValue()
-                            + Values.NOTELINES_IN_THE_WINDOW;
-                    setLocation(loc);
-                    currVal.setValue(loc);
+                    int loc = measureLineNum.intValue() + Values.NOTELINES_IN_THE_WINDOW;
+                    measureLineNum.set(loc);
                 }
                 playSoundLine(index);
                 queue--;
@@ -144,22 +147,4 @@ class AnimationTask extends Task<Void> {
     private void playSoundLine(int index) {
         soundPlayer.playSoundLine(index);
     }
-
-    /**
-     * Bumps the highlights on the staff by a certain amount.
-     *
-     * @param playBars
-     *            The list of playbar objects
-     * @param index
-     *            The index that we are currently at
-     */
-    private void bumpHighlights(ArrayList<ImageView> playBars,
-            int index) {
-        playBars.get(index).setVisible(true);
-        for (int i = 0; i < playBars.size(); i++)
-            if (i != index)
-                playBars.get(i).setVisible(false);
-
-    }
-
 }
