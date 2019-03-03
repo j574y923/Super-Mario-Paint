@@ -98,6 +98,7 @@ class AnimationTask extends Task<Void> {
                 if (loopPressed.get()) {
                     counter = 0;
                     index = 0;
+                    playIndex.set(0);
                     advance = false;
                     zero = true;
                 } else {
