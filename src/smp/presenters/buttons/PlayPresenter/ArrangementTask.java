@@ -3,10 +3,12 @@ package smp.presenters.buttons.PlayPresenter;
 import java.io.File;
 
 import javafx.application.Platform;
+import javafx.beans.property.DoubleProperty;
 import javafx.beans.property.ObjectProperty;
 import javafx.collections.ObservableList;
 import smp.models.staff.StaffArrangement;
 import smp.models.staff.StaffSequence;
+import smp.models.stateMachine.StateMachine;
 import smp.models.stateMachine.Variables;
 
 /**
@@ -15,10 +17,16 @@ import smp.models.stateMachine.Variables;
 class ArrangementTask extends AnimationTask {
 
 	private ObjectProperty<StaffArrangement> theArrangement;
+	private DoubleProperty measureLineNum;
+	private ObjectProperty<StaffSequence> theSequence;
 
+    /** Whether we are playing an arrangement. */
+    private boolean arrPlaying = false;
+    
 	public ArrangementTask() {
-		super();
 		this.theArrangement = Variables.theArrangement;
+		this.measureLineNum = StateMachine.getMeasureLineNum();
+		this.theSequence = Variables.theSequence;
 	}
 	
     @Override
@@ -35,18 +43,12 @@ class ArrangementTask extends AnimationTask {
             advance = false;
             queue++;
             highlightSong(i);
-            theSequence = seq.get(i);
-            theSequenceFile = files.get(i);
-            StateMachine.setNoteExtensions(
-                    theSequence.getNoteExtensions());
-            controller.getInstBLine().updateNoteExtensions();
-            StateMachine.setTempo(theSequence.getTempo());
+//            theSequenceFile = files.get(i);//TODO: add theSequenceFile logic for arrangementListPresenter
             lastLine = findLastLine();
             songPlaying = true;
-            setTempo(theSequence.getTempo());
-            playBars = staffImages.getPlayBars();
+            setTempo(theSequence.get().getTempo().get());
             int counter = 0;
-            StateMachine.setMeasureLineNum(0);
+            measureLineNum.set(0);
             queue++;
             zeroEverything();
             while (queue > 0)
@@ -68,7 +70,6 @@ class ArrangementTask extends AnimationTask {
             if (!arrPlaying)
                 break;
         }
-        highlightsOff();
         hitStop();
         return null;
     }

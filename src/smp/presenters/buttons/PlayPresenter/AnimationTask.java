@@ -44,10 +44,10 @@ class AnimationTask extends Task<Void> {
     protected volatile int queue = 0;
     
     /** Milliseconds to delay between updating the play bars. */
-    private long delayMillis;
+    protected long delayMillis;
 
     /** Nanoseconds to delay in addition to the milliseconds delay. */
-    private int delayNanos;
+    protected int delayNanos;
 
     /** Whether we are playing a song. */
     protected boolean songPlaying = false;
