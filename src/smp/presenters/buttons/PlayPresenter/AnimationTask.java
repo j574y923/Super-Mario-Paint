@@ -2,8 +2,12 @@ package smp.presenters.buttons.PlayPresenter;
 
 import javafx.application.Platform;
 import javafx.beans.property.DoubleProperty;
+import javafx.beans.property.ObjectProperty;
 import javafx.concurrent.Task;
+import smp.components.Values;
+import smp.models.staff.StaffSequence;
 import smp.models.stateMachine.StateMachine;
+import smp.models.stateMachine.Variables;
 
 /**
  * This class keeps track of animation and sound. Note to self: While
@@ -13,6 +17,7 @@ import smp.models.stateMachine.StateMachine;
 class AnimationTask extends Task<Void> {
 
 	private DoubleProperty measureLineNum;
+	private ObjectProperty<StaffSequence> theSequence;
 
     /**
      * This is the current index of the measure line that we are on on
@@ -29,6 +34,7 @@ class AnimationTask extends Task<Void> {
     protected volatile int queue = 0;
     
     public AnimationTask() {
+    	this.theSequence = Variables.theSequence;
     	this.measureLineNum = StateMachine.getMeasureLineNum();
     }
     
@@ -90,9 +96,9 @@ class AnimationTask extends Task<Void> {
      * just play things as they are.
      */
     protected void playNextLine() {
-        runUI(playBars, index, advance);
+        runUI(index, advance);
         advance = !(index < Values.NOTELINES_IN_THE_WINDOW - 1);
-        int remain = (int) (theControls.getScrollbar().getMax() - currVal.intValue());
+        int remain = (int) (theSequence.get().getTheLinesSize().get() - measureLineNum.intValue());
         if (Values.NOTELINES_IN_THE_WINDOW > remain && advance) {
             index -= (remain - 1);
         } else {
@@ -110,8 +116,7 @@ class AnimationTask extends Task<Void> {
      * @param advance
      *            Whether we need to move the staff by some bit.
      */
-    private void runUI(final ArrayList<ImageView> playBars,
-            final int index, final boolean advance) {
+    private void runUI(final int index, final boolean advance) {
         Platform.runLater(new Runnable() {
 
             @Override
