@@ -1,6 +1,9 @@
 package smp.presenters.buttons.PlayPresenter;
 
 import java.io.File;
+import java.io.IOException;
+import java.io.StreamCorruptedException;
+import java.text.ParseException;
 
 import javafx.application.Platform;
 import javafx.beans.property.DoubleProperty;
@@ -11,6 +14,8 @@ import smp.models.staff.StaffArrangement;
 import smp.models.staff.StaffSequence;
 import smp.models.stateMachine.StateMachine;
 import smp.models.stateMachine.Variables;
+import smp.presenters.api.load.Utilities;
+import smp.presenters.api.load.MPCDecoder;
 
 /**
  * This class runs an arrangement instead of just a song.
@@ -34,6 +39,7 @@ class ArrangementTask extends AnimationTask {
 	
     @Override
     protected Void call() throws Exception {
+    	startArrangement();
         ObservableList<StaffSequence> seq = theArrangement.get().getTheSequences();
         ObservableList<File> files = theArrangement.get().getTheSequenceFiles();
         for (int i = 0; i < seq.size(); i++) {
@@ -121,5 +127,77 @@ class ArrangementTask extends AnimationTask {
 
         });
     }
+    
+
+    /** Starts an arrangement. */
+    public synchronized void startArrangement() {
+//        soundPlayer.setRun(true);//TODO
+        ObservableList<StaffSequence> seq = theArrangement.get().getTheSequences();
+        ObservableList<File> files = theArrangement.get().getTheSequenceFiles();
+        measureLineNum.set(0);
+        for (int i = 0; i < seq.size(); i++) {
+            File f = files.get(i);
+            try {
+                seq.set(i, Utilities.loadSong(f));
+            } catch (StreamCorruptedException | NullPointerException e) {
+                try {
+                    seq.set(i, MPCDecoder.decode(f));
+                } catch (ParseException | IOException e1) {
+                    e1.printStackTrace();
+                    stopSong();
+                    return;
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+                stopSong();
+                return;
+            }
+        }
+//        soundPlayerThread.start();//TODO
+        arrPlaying = true;
+//        animationService.restart();//TODO
+    }
+    
+    /** Stops the song that is currently playing. */
+    public void stopSong() {
+    	//TODO:
+//        soundPlayer.setRun(false);
+//        try {
+//            soundPlayerThread.join();
+//        } catch (InterruptedException e) {
+//
+//        }
+        Platform.runLater(new Runnable() {
+
+            @Override
+            public void run() {
+                songPlaying = false;
+                arrPlaying = false;
+                //TODO
+//                animationService.cancel();
+//                switch (animationService.getState()) {
+//                case CANCELLED:
+//                case FAILED:
+//                case READY:
+//                case SUCCEEDED:
+//                    animationService.reset();
+//                    break;
+//                default:
+//                    break;
+//                }
+            }
+        });
+        //TODO:
+//        while (soundPlayerThread.isAlive()) {
+//            try {
+//                Thread.sleep(1);
+//            } catch (InterruptedException e) {
+//                // do nothing
+//            }
+//        }
+//        soundPlayerThread = new Thread(soundPlayer);
+//        soundPlayerThread.setDaemon(true);
+    }
+
 }
 

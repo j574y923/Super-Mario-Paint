@@ -207,7 +207,7 @@ class AnimationTask extends Task<Void> {
         setTempo(theSequence.get().getTempo().get());
 //        animationService.restart();//TODO
     }
-
+    
     /**
      * @param tempo
      *            The tempo we want to set this staff to run at, in BPM. Beats
