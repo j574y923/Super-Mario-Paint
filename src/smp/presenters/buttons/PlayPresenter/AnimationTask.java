@@ -1,12 +1,16 @@
 package smp.presenters.buttons.PlayPresenter;
 
 import javafx.application.Platform;
+import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.DoubleProperty;
 import javafx.beans.property.IntegerProperty;
 import javafx.beans.property.ObjectProperty;
+import javafx.collections.ObservableList;
 import javafx.concurrent.Task;
 import smp.components.Values;
+import smp.models.staff.StaffNoteLine;
 import smp.models.staff.StaffSequence;
+import smp.models.stateMachine.ProgramState;
 import smp.models.stateMachine.StateMachine;
 import smp.models.stateMachine.Variables;
 
@@ -22,6 +26,8 @@ class AnimationTask extends Task<Void> {
 	private DoubleProperty measureLineNum;
 	private ObjectProperty<StaffSequence> theSequence;
 	private IntegerProperty playIndex;
+	private ObjectProperty<ProgramState> programState;	
+	private BooleanProperty loopPressed;
 
     /**
      * This is the current index of the measure line that we are on on
@@ -37,10 +43,24 @@ class AnimationTask extends Task<Void> {
     /** Number of lines queued up to play. */
     protected volatile int queue = 0;
     
+    /** Milliseconds to delay between updating the play bars. */
+    private long delayMillis;
+
+    /** Nanoseconds to delay in addition to the milliseconds delay. */
+    private int delayNanos;
+
+    /** Whether we are playing a song. */
+    private boolean songPlaying = false;
+    
+    /** This is the last line of notes in the song. */
+    private int lastLine;
+    
     public AnimationTask() {
     	this.theSequence = Variables.theSequence;
     	this.measureLineNum = StateMachine.getMeasureLineNum();
     	this.playIndex = Variables.playIndex;
+		this.programState = StateMachine.getState();
+		this.loopPressed = StateMachine.getLoopPressed();
     }
     
     /**
@@ -60,8 +80,8 @@ class AnimationTask extends Task<Void> {
 
     @Override
     protected Void call() throws Exception {
-        playBars = staffImages.getPlayBars();
-        int counter = StateMachine.getMeasureLineNum();
+    	startSong();
+        int counter = measureLineNum.intValue();
         boolean zero = false;
         while (songPlaying) {
             if (zero) {
@@ -75,7 +95,7 @@ class AnimationTask extends Task<Void> {
             playNextLine();
             counter++;
             if (counter > lastLine && counter % 4 == 0) {
-                if (StateMachine.isLoopPressed()) {
+                if (loopPressed.get()) {
                     counter = 0;
                     index = 0;
                     advance = false;
@@ -83,23 +103,21 @@ class AnimationTask extends Task<Void> {
                 } else {
                     songPlaying = false;
                 }
-            }
-            try {
-                Thread.sleep(delayMillis, delayNanos);
-            } catch (InterruptedException e) {
-                // Do nothing
-            }
-        }
-        highlightsOff();
-        hitStop();
-        return null;
-    }
+			}
+			try {
+				Thread.sleep(delayMillis, delayNanos);
+			} catch (InterruptedException e) {
+				// Do nothing
+			}
+		}
+		hitStop();
+		return null;
+	}
 
-    /**
-     * Plays the next line of notes in the queue. For
-     * ease-of-programming purposes, we'll not care about efficiency and
-     * just play things as they are.
-     */
+	/**
+	 * Plays the next line of notes in the queue. For ease-of-programming purposes,
+	 * we'll not care about efficiency and just play things as they are.
+	 */
     protected void playNextLine() {
         runUI(index, advance);
         advance = !(index < Values.NOTELINES_IN_THE_WINDOW - 1);
@@ -145,6 +163,65 @@ class AnimationTask extends Task<Void> {
      *            The index to play.
      */
     private void playSoundLine(int index) {
-        soundPlayer.playSoundLine(index);
+    	//TODO:
+//        soundPlayer.playSoundLine(index);
+    }
+    
+    /**
+     * Finds the last line in the sequence that we are playing.
+     */
+    private int findLastLine() {
+        ObservableList<StaffNoteLine> lines = theSequence.get().getTheLines();
+        for (int i = lines.size() - 1; i >= 0; i--)
+            if (!lines.get(i).isEmpty()) {
+                return i;
+            }
+        return 0;
+    }
+    
+    /**
+     * Hits the stop button.
+     */
+    public void hitStop() {
+        Platform.runLater(new Runnable() {
+
+            @Override
+            public void run() {
+            	programState.set(ProgramState.EDITING);
+            }
+        });
+    }
+
+    /** Begins animation of the Staff. (Starts a song) */
+    public synchronized void startSong() {
+//        soundPlayer.setRun(true);//TODO
+        lastLine = findLastLine();
+        if ((lastLine == 0 && theSequence.get().getLine(0).isEmpty())
+                || (lastLine < measureLineNum.intValue())) {
+        	programState.set(ProgramState.EDITING);
+            return;
+        }
+//        soundPlayerThread.start();//TODO
+        songPlaying = true;
+        setTempo(theSequence.get().getTempo().get());
+//        animationService.restart();//TODO
+    }
+
+    /**
+     * @param tempo
+     *            The tempo we want to set this staff to run at, in BPM. Beats
+     *            per minute * 60 = beats per second <br>
+     *            Beats per second ^ -1 = seconds per beat <br>
+     *            Seconds per beat * 1000 = Milliseconds per beat <br>
+     *            (int) Milliseconds per beat = Milliseconds <br>
+     *            Milliseconds per beat - milliseconds = remainder <br>
+     *            (int) (Remainder * 1e6) = Nanoseconds <br>
+     *
+     */
+    public void setTempo(double tempo) {
+        double mill = (60.0 / tempo) * 1000;
+        delayMillis = (int) mill;
+        double nano = (mill - delayMillis) * Math.pow(10, 6);
+        delayNanos = (int) nano;
     }
 }
