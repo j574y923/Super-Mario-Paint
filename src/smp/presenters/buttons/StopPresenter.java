@@ -48,7 +48,6 @@ public class StopPresenter extends ImageRadioButton {
 
 			@Override
 			public void changed(ObservableValue<? extends Object> observable, Object oldValue, Object newValue) {
-				//TODO: instead of this listener, link with play?
 				if (newValue.equals(ProgramState.SONG_PLAYING) || newValue.equals(ProgramState.ARR_PLAYING)) {
 			        releaseImage();
 			        isPressed = false;

@@ -1,4 +1,4 @@
-package smp.presenters.buttons;
+package smp.presenters.buttons.PlayPresenter;
 
 import javafx.beans.property.ObjectProperty;
 import javafx.beans.value.ChangeListener;
@@ -48,7 +48,6 @@ public class PlayPresenter extends ImageRadioButton {
 
 			@Override
 			public void changed(ObservableValue<? extends Object> observable, Object oldValue, Object newValue) {
-				//TODO: instead of this listener, link with stop?
 				if (newValue.equals(ProgramState.SONG_PLAYING) || newValue.equals(ProgramState.ARR_PLAYING)) {
 			        reactPressed(null);
 				} else if (newValue.equals(ProgramState.EDITING) || newValue.equals(ProgramState.ARR_EDITING)) {
