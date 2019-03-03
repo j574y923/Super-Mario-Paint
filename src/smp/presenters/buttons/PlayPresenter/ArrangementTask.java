@@ -4,6 +4,7 @@ import java.io.File;
 
 import javafx.application.Platform;
 import javafx.beans.property.DoubleProperty;
+import javafx.beans.property.IntegerProperty;
 import javafx.beans.property.ObjectProperty;
 import javafx.collections.ObservableList;
 import smp.models.staff.StaffArrangement;
@@ -19,6 +20,7 @@ class ArrangementTask extends AnimationTask {
 	private ObjectProperty<StaffArrangement> theArrangement;
 	private DoubleProperty measureLineNum;
 	private ObjectProperty<StaffSequence> theSequence;
+	private IntegerProperty arrangementListSelectedIndex;
 
     /** Whether we are playing an arrangement. */
     private boolean arrPlaying = false;
@@ -27,6 +29,7 @@ class ArrangementTask extends AnimationTask {
 		this.theArrangement = Variables.theArrangement;
 		this.measureLineNum = StateMachine.getMeasureLineNum();
 		this.theSequence = Variables.theSequence;
+		this.arrangementListSelectedIndex = Variables.arrangementListSelectedIndex;
 	}
 	
     @Override
@@ -112,8 +115,7 @@ class ArrangementTask extends AnimationTask {
 
             @Override
             public void run() {
-                theArrangementList.getSelectionModel().select(i);
-                theArrangementList.scrollTo(i);
+            	arrangementListSelectedIndex.set(i);
                 queue--;
             }
 
