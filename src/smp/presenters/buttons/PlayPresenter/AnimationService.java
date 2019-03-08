@@ -22,9 +22,10 @@ class AnimationService extends Service<Void> {
     
     @Override
     protected Task<Void> createTask() {
-        if (!programState.get().equals(ProgramState.ARR_PLAYING))
+        if (programState.get().equals(ProgramState.SONG_PLAYING))
             return new AnimationTask();
-        else
+        else if (programState.get().equals(ProgramState.ARR_PLAYING))
             return new ArrangementTask();
+		return null;
     }
 }

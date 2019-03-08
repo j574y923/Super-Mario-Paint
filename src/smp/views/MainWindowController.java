@@ -34,9 +34,11 @@ import smp.presenters.buttons.OptionsButtonPresenter;
 import smp.presenters.buttons.RightArrowPresenter;
 import smp.presenters.buttons.RightFastArrowPresenter;
 import smp.presenters.buttons.SaveButtonPresenter;
+import smp.presenters.buttons.StopPresenter;
 import smp.presenters.buttons.TempoMinusPresenter;
 import smp.presenters.buttons.TempoPlusPresenter;
 import smp.presenters.buttons.UpButtonPresenter;
+import smp.presenters.buttons.PlayPresenter.PlayPresenter;
 import smp.presenters.staff.StaffAccidentalsPresenter;
 import smp.presenters.staff.StaffExtLinesHighAPresenter;
 import smp.presenters.staff.StaffExtLinesHighCPresenter;
@@ -44,6 +46,7 @@ import smp.presenters.staff.StaffExtLinesLowAPresenter;
 import smp.presenters.staff.StaffExtLinesLowCPresenter;
 import smp.presenters.staff.StaffMeasureLinesPresenter;
 import smp.presenters.staff.StaffMeasureNumbersPresenter;
+import smp.presenters.staff.StaffPlayBarsPresenter;
 import smp.presenters.staff.StaffInstrumentsPresenter.StaffInstrumentsPresenter;
 import smp.presenters.staff.VolumeBarsPresenter.VolumeBarsPresenter;
 
@@ -230,9 +233,11 @@ public class MainWindowController {
     	new ModeButtonPresenter(modeButton);
     	new NewButtonPresenter(newButton);
     	new OptionsButtonPresenter(optionsButton);
+    	new PlayPresenter(play);
     	new RightArrowPresenter(rightArrow);
     	new RightFastArrowPresenter(rightFastArrow);
     	new SaveButtonPresenter(saveButton);
+    	new StopPresenter(stop);
     	new TempoMinusPresenter(tempoMinus);
     	new TempoPlusPresenter(tempoPlus);
     	new UpButtonPresenter(upButton);
@@ -245,6 +250,7 @@ public class MainWindowController {
     	new StaffInstrumentsPresenter(staffInstruments);
     	new StaffMeasureLinesPresenter(staffMeasureLines);
     	new StaffMeasureNumbersPresenter(staffMeasureNumbers);
+    	new StaffPlayBarsPresenter(staffPlayBars);
     	new VolumeBarsPresenter(volumeBars);
     }
     

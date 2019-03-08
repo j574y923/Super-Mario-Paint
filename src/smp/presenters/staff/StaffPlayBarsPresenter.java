@@ -11,6 +11,7 @@ import javafx.scene.image.ImageView;
 import javafx.scene.layout.HBox;
 import smp.ImageIndex;
 import smp.ImageLoader;
+import smp.TestMain;
 import smp.models.stateMachine.ProgramState;
 import smp.models.stateMachine.StateMachine;
 import smp.models.stateMachine.Variables;
@@ -27,7 +28,7 @@ public class StaffPlayBarsPresenter {
 	private ArrayList<ImageView> staffPlayBarsIV;
 
 	// TODO: set
-	private ImageLoader il;
+	private ImageLoader il = (ImageLoader) TestMain.imgLoader;
 
 	public StaffPlayBarsPresenter(HBox staffPlayBars) {
 		this.staffPlayBars = staffPlayBars;

@@ -80,7 +80,8 @@ class AnimationTask extends Task<Void> {
 
     @Override
     protected Void call() throws Exception {
-    	startSong();
+    	if(!startSong())
+    		return null;
         int counter = measureLineNum.intValue();
         boolean zero = false;
         while (songPlaying) {
@@ -123,13 +124,12 @@ class AnimationTask extends Task<Void> {
         runUI(index, advance);
         advance = !(index < Values.NOTELINES_IN_THE_WINDOW - 1);
         int remain = (int) (theSequence.get().getTheLinesSize().get() - measureLineNum.intValue());
-        if (Values.NOTELINES_IN_THE_WINDOW > remain && advance) {
+		if (Values.NOTELINES_IN_THE_WINDOW > remain && advance) {
             index -= (remain - 1);
         } else {
-            index = advance ? 0 : (index + 1);
-        }
-        playIndex.set(index);
-    }
+			index = advance ? 0 : (index + 1);
+		}
+	}
 
     /**
      * Bumps the highlight of the notes to the next play bar.
@@ -146,15 +146,16 @@ class AnimationTask extends Task<Void> {
 
             @Override
             public void run() {
-                if (advance) {
-                    int loc = measureLineNum.intValue() + Values.NOTELINES_IN_THE_WINDOW;
-                    measureLineNum.set(loc);
-                }
-                playSoundLine(index);
-                queue--;
-            }
-        });
-    }
+				if (advance) {
+					int loc = measureLineNum.intValue() + Values.NOTELINES_IN_THE_WINDOW;
+					measureLineNum.set(loc);
+				}
+				playIndex.set(index);
+				playSoundLine(index);
+				queue--;
+			}
+		});
+	}
 
     /**
      * Plays a sound line at the index specified. Or rather, tells the
@@ -194,18 +195,19 @@ class AnimationTask extends Task<Void> {
     }
 
     /** Begins animation of the Staff. (Starts a song) */
-    public synchronized void startSong() {
+    public synchronized boolean startSong() {
 //        soundPlayer.setRun(true);//TODO
         lastLine = findLastLine();
         if ((lastLine == 0 && theSequence.get().getLine(0).isEmpty())
                 || (lastLine < measureLineNum.intValue())) {
         	programState.set(ProgramState.EDITING);
-            return;
+            return false;
         }
 //        soundPlayerThread.start();//TODO
         songPlaying = true;
         setTempo(theSequence.get().getTempo().get());
 //        animationService.restart();//TODO
+        return true;
     }
     
     /**

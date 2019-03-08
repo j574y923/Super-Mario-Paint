@@ -23,6 +23,12 @@ public class PlayPresenter extends ImageRadioButton {
 	//====Models====
     private ObjectProperty<ProgramState> programState;
 
+    /**
+     * This is a service that will help run the animation and sound of playing a
+     * song.
+     */
+    private AnimationService animationService;
+
 	/**
      * Instantiates the Play button on the staff
      *
@@ -38,6 +44,8 @@ public class PlayPresenter extends ImageRadioButton {
         getImages(ImageIndex.PLAY_PRESSED, ImageIndex.PLAY_RELEASED);
         releaseImage();
         isPressed = false;
+        
+        animationService = new AnimationService();
         
         this.programState = StateMachine.getState();
         setupViewUpdater();
@@ -57,19 +65,18 @@ public class PlayPresenter extends ImageRadioButton {
 			}
 		});
 	}
+
 	@Override
-    protected void reactPressed(MouseEvent e) {
-        if (isPressed)
-            return;
-        super.reactPressed(e);
+	protected void reactPressed(MouseEvent e) {
+		if (isPressed)
+			return;
+		super.reactPressed(e);
         if (programState.get() == ProgramState.EDITING) {
         	programState.set(ProgramState.SONG_PLAYING);
-            //TODO: convert startSong
-//            theStaff.startSong();
+        	animationService.restart();
         } else if (programState.get() == ProgramState.ARR_EDITING) {
         	programState.set(ProgramState.ARR_PLAYING);
-            //TODO: convert startArrangement
-//            theStaff.startArrangement();
+        	animationService.restart();
         }
     }
 
